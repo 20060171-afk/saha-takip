@@ -149,6 +149,7 @@ input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{bor
 
 <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const KULE_LABELS = ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Muvafakat", "Bağlantı Görüşü", "Kolon Kabulü/Montaj Kontrol", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"];
 const BINA_LABELS = ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"];
@@ -378,6 +379,7 @@ function render(){
       <option value="ongoing" ${STATE.filter==='ongoing'?'selected':''}>Devam eden</option>
       <option value="done" ${STATE.filter==='done'?'selected':''}>Tamamlanan</option>
     </select>
+    <button class="btn" onclick="exportToExcel()">Tümünü Excel'e aktar</button>
     <button class="btn primary" onclick="openAddModal()" style="${STATE.isAdmin?'':'display:none'}">+ Yeni saha ekle</button>
   </div>`;
 
@@ -432,6 +434,44 @@ function render(){
 }
 
 function onSearch(v){ STATE.search=v; render(); }
+
+function buildSheetRows(cat){
+  const labels = labelsFor(cat);
+  const items = (STATE.data[cat] || []).slice().sort((a,b) => (a.sahaAdi||'').localeCompare(b.sahaAdi||''));
+  return items.map(item => {
+    const st = computeStatus(item);
+    const stepLabel = item.currentStep>0 && item.currentStep<=labels.length ? labels[item.currentStep-1] : 'Başlamadı';
+    return {
+      'Saha Kodu': item.sahaKodu || '',
+      'Saha No': item.sahaNo || '',
+      'Enerji': item.enerji || '',
+      'Saha Adı': item.sahaAdi || '',
+      'Açıklama': item.aciklama || '',
+      'Bulunduğu Adım': `${item.currentStep||0}/${item.totalSteps||labels.length} · ${stepLabel}`,
+      'İlerleme (%)': st.pct,
+      'Durum': st.statusText,
+      'Başlangıç Tarihi': item.startDate ? fmtDate(item.startDate) : '',
+      'Tamamlanma Tarihi': item.completionDate ? fmtDate(item.completionDate) : '',
+      'Gün Sayısı': st.days !== null ? st.days : '',
+    };
+  });
+}
+
+function exportToExcel(){
+  const colWidths = [ {wch:14},{wch:10},{wch:14},{wch:26},{wch:34},{wch:24},{wch:10},{wch:14},{wch:14},{wch:16},{wch:10} ];
+  const wb = XLSX.utils.book_new();
+
+  const wsKule = XLSX.utils.json_to_sheet(buildSheetRows('kule'));
+  wsKule['!cols'] = colWidths;
+  XLSX.utils.book_append_sheet(wb, wsKule, 'Kule Üzeri');
+
+  const wsBina = XLSX.utils.json_to_sheet(buildSheetRows('bina'));
+  wsBina['!cols'] = colWidths;
+  XLSX.utils.book_append_sheet(wb, wsBina, 'Bina Üzeri');
+
+  const fname = `saha-takip-${todayISO()}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
 function onFilter(v){ STATE.filter=v; render(); }
 
 function emptyItem(cat){
