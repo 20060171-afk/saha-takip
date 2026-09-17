@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saha Takip Dashboard</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --border:#e3e5ea; --border-strong:#c9ccd4;
+  --text:#1c1e22; --text-2:#5b6068; --text-muted:#8b909a;
+  --accent:#2f6fed; --accent-bg:#eaf1fe; --accent-text:#1a4fbf;
+  --green:#1d9e75; --green-bg:#e1f5ee; --green-text:#0a6b4f;
+  --amber:#ba7517; --amber-bg:#faeeda; --amber-text:#854f0b;
+  --red:#c94040; --red-bg:#fcebeb; --red-text:#a32d2d;
+  --gray-bg:#eef0f2;
+  --radius:10px; --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181c; --card:#1e2126; --border:#2c3038; --border-strong:#3a3f49;
+    --text:#eceef1; --text-2:#b3b8c2; --text-muted:#7d828c;
+    --accent:#5b8def; --accent-bg:#1c2c4d; --accent-text:#9dbdf9;
+    --green:#3fb98d; --green-bg:#123a2c; --green-text:#6fd3ae;
+    --amber:#e0a13c; --amber-bg:#3c2c0c; --amber-text:#f0bd6a;
+    --red:#e06868; --red-bg:#3c1c1c; --red-text:#f09a9a;
+    --gray-bg:#262a31;
+  }
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px;}
+h1{font-size:20px;font-weight:600;margin:0;}
+.sub{color:var(--text-2);font-size:13px;margin-top:2px;}
+.hero{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+.intro-text{font-size:13px;color:var(--text-2);margin:0 0 14px;max-width:720px;line-height:1.6;}
+.legend{display:flex;gap:8px;flex-wrap:wrap;}
+.badge-role{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--border-strong);color:var(--text-2);background:var(--card);white-space:nowrap;}
+.auth-wrap{display:flex;align-items:center;gap:8px;}
+.badge-role.admin{color:var(--accent-text);background:var(--accent-bg);border-color:var(--accent);}
+.link-btn{background:none;border:none;font-family:var(--font);font-size:12px;color:var(--accent);cursor:pointer;padding:0;text-decoration:underline;}
+.tabs{display:flex;gap:6px;background:var(--gray-bg);padding:4px;border-radius:10px;width:fit-content;margin-bottom:16px;}
+.tab-btn{border:none;background:transparent;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:500;color:var(--text-2);cursor:pointer;font-family:var(--font);}
+.tab-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,0.06);}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+.metric .lbl{font-size:12px;color:var(--text-muted);margin-bottom:4px;}
+.metric .val{font-size:22px;font-weight:600;}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+input[type=text], input[type=date], select, textarea{
+  font-family:var(--font);font-size:14px;color:var(--text);background:var(--card);
+  border:1px solid var(--border-strong);border-radius:8px;padding:8px 10px;outline:none;
+}
+input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{border-color:var(--accent);}
+.search{flex:1;min-width:180px;}
+.btn{font-family:var(--font);font-size:13px;font-weight:500;padding:8px 14px;border-radius:8px;border:1px solid var(--border-strong);background:var(--card);color:var(--text);cursor:pointer;white-space:nowrap;}
+.btn:hover{background:var(--gray-bg);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary:hover{opacity:0.92;}
+.btn.danger{color:var(--red-text);border-color:var(--red);}
+.btn.small{padding:5px 10px;font-size:12px;}
+.list{display:flex;flex-direction:column;gap:10px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.card-left{flex:1;min-width:0;}
+.saha-name{font-weight:600;font-size:15px;}
+.saha-meta{font-size:12.5px;color:var(--text-2);margin-top:2px;}
+.card-right{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;}
+.donut{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:conic-gradient(var(--clr) calc(var(--pct)*1%), var(--gray-bg) 0);}
+.donut-hole{width:38px;height:38px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--text);}
+.tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;}
+.tag{font-size:11.5px;padding:3px 8px;border-radius:6px;background:var(--gray-bg);color:var(--text-2);}
+.tag.energy{background:var(--accent-bg);color:var(--accent-text);}
+.status{font-size:11.5px;padding:3px 9px;border-radius:999px;font-weight:500;}
+.status.done{background:var(--green-bg);color:var(--green-text);}
+.status.ongoing{background:var(--accent-bg);color:var(--accent-text);}
+.status.stalled{background:var(--amber-bg);color:var(--amber-text);}
+.step-label{font-size:12.5px;color:var(--text-2);margin-top:10px;}
+.counter-row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:8px;}
+.counter{font-size:12.5px;color:var(--text-2);}
+.counter b{color:var(--text);font-weight:600;}
+.card-actions{display:flex;gap:6px;}
+.aciklama{font-size:12.5px;color:var(--text-2);margin-top:6px;font-style:italic;}
+.empty{text-align:center;padding:50px 20px;color:var(--text-muted);font-size:14px;}
+.modal-overlay{position:relative;min-height:100vh;background:rgba(0,0,0,0.45);display:flex;align-items:flex-start;justify-content:center;padding:30px 14px;}
+.modal{background:var(--card);border-radius:14px;max-width:560px;width:100%;padding:20px 22px 22px;border:1px solid var(--border);max-height:90vh;overflow-y:auto;}
+.modal h3{margin:0 0 14px;font-size:17px;font-weight:600;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12.5px;color:var(--text-2);margin-bottom:4px;}
+.field input, .field select, .field textarea{width:100%;}
+.field textarea{resize:vertical;min-height:44px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+.steps-detail{border-top:1px solid var(--border);padding-top:10px;margin-top:6px;}
+.steps-detail summary{cursor:pointer;font-size:12.5px;color:var(--text-2);}
+.step-item{margin-top:8px;}
+.step-item label{font-size:12px;color:var(--text-muted);}
+.err{color:var(--red-text);font-size:12.5px;margin-top:4px;}
+.dist-title{font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text);}
+.dist-sub{font-size:12px;color:var(--text-muted);margin:0 0 16px;line-height:1.5;}
+.donut-summary{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;}
+.donut-left{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+.donut-big{width:140px;height:140px;flex-shrink:0;position:relative;}
+.donut-seg{cursor:pointer;transition:opacity .15s;}
+.donut-seg:hover{opacity:0.85;}
+.donut-big-hole{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:88px;height:88px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.donut-big-hole .num{font-size:22px;font-weight:600;color:var(--text);line-height:1.2;}
+.donut-big-hole .lbl{font-size:10.5px;color:var(--text-muted);}
+.donut-tooltip{position:fixed;display:none;background:var(--text);color:var(--bg);font-size:12px;font-weight:600;padding:6px 10px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);pointer-events:none;z-index:80;}
+.legend-list{display:flex;flex-direction:column;gap:9px;}
+.legend-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);}
+.legend-row .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.mini-stats{display:flex;flex-direction:column;gap:12px;text-align:right;flex-shrink:0;}
+.mini-stat-lbl{font-size:11px;color:var(--text-muted);}
+.mini-stat-val{font-size:13.5px;font-weight:600;color:var(--text);margin-top:2px;}
+.foot{font-size:11.5px;color:var(--text-muted);margin-top:34px;text-align:center;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="topbar">
+      <div>
+        <h1>Saha Takip Dashboard</h1>
+        <div class="sub" id="subtitle">Yükleniyor…</div>
+      </div>
+      <div id="authBadge"></div>
+    </div>
+    <div class="intro-text">Her kart bir sahayı temsil eder: ilerleme çubuğu tamamlanma yüzdesini, alt satır bulunduğu adımı ve başlangıçtan bu yana geçen gün sayısını gösterir.</div>
+    <div class="legend">
+      <span class="status ongoing">Devam ediyor</span>
+      <span class="status done">Tamamlandı</span>
+      <span class="status stalled">60+ gündür bekliyor</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="kule" onclick="switchTab('kule')">Kule üzeri</button>
+    <button class="tab-btn" data-tab="bina" onclick="switchTab('bina')">Bina üzeri</button>
+  </div>
+
+  <div id="content"></div>
+
+  <div class="foot">Veriler paylaşılan, canlı güncellenen bir bulut veritabanında (Firebase) tutulur — bir düzenleme yapıldığında bu linki açan herkeste anında güncellenir.</div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="donutTooltip" class="donut-tooltip"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
+<script>
+const KULE_LABELS = ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Muvafakat", "Bağlantı Görüşü", "Kolon Kabulü/Montaj Kontrol", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"];
+const BINA_LABELS = ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"];
+const SEED = {"kule": {"labels": ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Muvafakat", "Bağlantı Görüşü", "Kolon Kabulü/Montaj Kontrol", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"], "rows": [{"sahaKodu": "MURAY", "sahaNo": "5274482", "enerji": "Geçici Süzme", "sahaAdi": "TOYBELEN ORGANIZE SANAYI", "aciklama": "Proje onaylandı. Montaj planında.", "stepNotes": ["18.03.2026 Tarihinde istendi", "26.03.2026 Tarihinde teslim edildi.", "Gerekmemektedir", "30.03.2026 tarihinde onaylandı.", "", "", "", ""], "currentStep": 4, "totalSteps": 8, "completed": false, "startDate": "2026-03-18", "completionDate": null}, {"sahaKodu": "TOMET", "sahaNo": "5300416", "enerji": "Geçici Süzme", "sahaAdi": "TOKAT KASIKCIBAGLARI MAH", "aciklama": "Tarım İl Müdürlüğünden muvafakat alınacak.", "stepNotes": ["16.03.2026 Tarihinde istendi", "7.04.2026 Tarihinde teslim edildi.", "Tarım İl Müdürlüğünden muvafakat olmadığı için onaylanmadı.", "", "", "", "", ""], "currentStep": 3, "totalSteps": 8, "completed": false, "startDate": "2026-03-16", "completionDate": null}, {"sahaKodu": "DURSK", "sahaNo": "5283796", "enerji": "Geçici Süzme", "sahaAdi": "DURAGAN SARIKADI YENI", "aciklama": "TT katılım olduğu için süzme enerji ile çalışıyor. Evrak tamamlanıp abonelik yapılacak.", "stepNotes": ["14.09.2026 Tarihinde istendi.", "15.09.2026 Tarihinde teslim edildi.", "TT ve Tarım İL Müdürlüğünden muvafakat bekleniyor.", "", "", "", "", ""], "currentStep": 3, "totalSteps": 8, "completed": false, "startDate": "2026-09-14", "completionDate": null}, {"sahaKodu": "TEKCE", "sahaNo": "5296204", "enerji": "Geçici Süzme", "sahaAdi": "TEKKEKOY MERKEZ", "aciklama": "Yedaşın bağlantı görüşü verdiği enerji box belediyenin yaptığı kaldırımın içinde kalmış. Yedaşa durum iletildi. Box yeri değişecek.", "stepNotes": ["16.02.2026 Tarihinde istendi", "5.03.2026 Tarihinde teslim edildi.", "Gerekmemektedir", "Yedaşın bağlantı görüşü verilen  enerji box belediyenin yaptığı kaldırımın içinde kalmış. Yedaşa durum iletildi. Box yeri değişecek.", "", "", "", ""], "currentStep": 4, "totalSteps": 8, "completed": false, "startDate": "2026-02-16", "completionDate": null}, {"sahaKodu": "ATAFD", "sahaNo": "5159850", "enerji": "Halted", "sahaAdi": "ATAKUM AFAD", "aciklama": "Onaylı OG proje kule firmasına teslim edildi. ESKA firmasından trafo tedarik sürecinde olduğu bilgisi alındı.", "stepNotes": ["17.04.2026 Tarihinde istendi", "17.04.2026 Tarihinde teslim edildi.", "Gerekmemektedir", "OG saha olduğundan 13.07.2026 Tarihinde bağlantı görüşü onaylandı.Kule firmasına teslim edildi.", "", "", "", ""], "currentStep": 4, "totalSteps": 8, "completed": false, "startDate": "2026-04-17", "completionDate": null}, {"sahaKodu": "CWDYE", "sahaNo": "5357673", "enerji": "Halted", "sahaAdi": "KARAVAN AKKUS TUZAKKOY", "aciklama": "Montaj tamamlandı. Abonelik tamamlanacak.", "stepNotes": ["29.07.2026 Tarihinde istendi", "29.07.2026 Tarihinde teslim edildi.", "Gerekmemektedir", "04.09.2026 Tarihinde bağlantı görüşüne göre montojı tamamlandı.", "07.09.2026 Tarihinde kolon kabulü için başvuru yapıldı. YEADAŞ kaynaklı personel azlığından dolayı kontrol bekliyor", "Tesisat kontrol başvurusu yapılacak.", "", ""], "currentStep": 6, "totalSteps": 8, "completed": false, "startDate": "2026-07-29", "completionDate": null}]}, "bina": {"labels": ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"], "rows": [{"sahaKodu": "ATABB", "sahaNo": "30008866", "enerji": "Geçici Süzme", "sahaAdi": "ATAKUM CAKIRYALI ALT", "aciklama": "Proje süreci başladı.", "stepNotes": ["8.09.2026 Tarihinde istendi", "8.09.2026 Tarihinde teslim edildi.", "", "", ""], "currentStep": 2, "totalSteps": 5, "completed": false, "startDate": "2026-09-08", "completionDate": null}, {"sahaKodu": "CORMV", "sahaNo": "5345361", "enerji": "Abone", "sahaAdi": "Çorum Mahmutevler", "aciklama": "Abonelik tamamlandı.", "stepNotes": ["23.08.2026  Tarinde istendi", "26.08.2026 Tarihinde teslim edildi.", "07.09.2026 Tarinde  sayaç bağlandı.", "09.09.2026 Tarinde abone olundu", "Tamamlandı"], "currentStep": 5, "totalSteps": 5, "completed": true, "startDate": "2026-08-23", "completionDate": "2026-09-09"}, {"sahaKodu": "CANOF", "sahaNo": "5306575", "enerji": "Abone", "sahaAdi": "Belediyeevler Kavşak", "aciklama": "Abonelik tamamlandı.", "stepNotes": ["20.04.2026  Tarinde istendi", "26.04.2026 Tarihinde teslim edildi.", "16.08.2026 Tarihinde projeden kaynaklı reddoldu.                           07.09.2026 Tarinde  sayaç bağlandı.", "09.09.2026 Tarinde abone olundu", "Tamamlandı"], "currentStep": 5, "totalSteps": 5, "completed": true, "startDate": "2026-04-20", "completionDate": "2026-09-09"}, {"sahaKodu": "UNYEB", "sahaNo": "5332407", "enerji": "Geçici Süzme", "sahaAdi": "ORDU UNYE BAYRAMCA", "aciklama": "Proje sürecinde.", "stepNotes": ["11.06.2026 Tarihinde istendi", "24.06.2026 Tarihinde teslim edildi.", "", "", ""], "currentStep": 2, "totalSteps": 5, "completed": false, "startDate": "2026-06-11", "completionDate": null}]}};
+const firebaseConfig = {
+  apiKey: "AIzaSyDAWjaVHYqdN1AWSFn_AJMrYVtFbs1vwgE",
+  authDomain: "saha-takip-32303.firebaseapp.com",
+  projectId: "saha-takip-32303",
+  storageBucket: "saha-takip-32303.firebasestorage.app",
+  messagingSenderId: "244930928890",
+  appId: "1:244930928890:web:4a1957a0fe542f6e4fa943",
+  measurementId: "G-REFX9369YQ"
+};
+firebase.initializeApp(firebaseConfig);
+const fdb = firebase.firestore();
+const ADMIN_USER = 'admin';
+const ADMIN_PASS = '5558';
+const SESSION_KEY = 'saha_takip_admin_v1';
+
+const STATE = {
+  tab: 'kule',
+  data: { kule: [], bina: [] },
+  loaded: { kule: false, bina: false },
+  search: '',
+  filter: 'all',
+  editing: null,
+  isAdmin: false,
+};
+
+function labelsFor(cat){ return cat === 'kule' ? KULE_LABELS : BINA_LABELS; }
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function daysBetween(a, b){
+  const d1 = new Date(a + 'T00:00:00');
+  const d2 = new Date(b + 'T00:00:00');
+  return Math.round((d2 - d1) / 86400000);
+}
+function fmtDate(iso){
+  if(!iso) return '—';
+  const [y,m,d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function collFor(cat){ return cat === 'kule' ? 'saha_kule' : 'saha_bina'; }
+
+function rowToDoc(row){
+  return {
+    sahaKodu: row.sahaKodu || '', sahaNo: row.sahaNo || '', enerji: row.enerji || '',
+    sahaAdi: row.sahaAdi || '', aciklama: row.aciklama || '',
+    stepNotes: row.stepNotes || [], currentStep: row.currentStep || 0,
+    totalSteps: row.totalSteps, completed: !!row.completed,
+    startDate: row.startDate || null, completionDate: row.completionDate || null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function ensureSeeded(){
+  try{
+    const meta = await fdb.collection('meta').doc('seed_v1').get();
+    if(meta.exists) return;
+    for(const cat of ['kule','bina']){
+      const coll = fdb.collection(collFor(cat));
+      for(let i=0;i<SEED[cat].rows.length;i++){
+        await coll.doc('seed_'+cat+'_'+i).set(rowToDoc(SEED[cat].rows[i]));
+      }
+    }
+    await fdb.collection('meta').doc('seed_v1').set({ seededAt: new Date().toISOString() });
+  }catch(e){ console.error('seed error', e); }
+}
+
+function subscribe(cat){
+  fdb.collection(collFor(cat)).onSnapshot((snap) => {
+    STATE.data[cat] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    STATE.loaded[cat] = true;
+    render();
+  }, (err) => {
+    console.error('onSnapshot error', cat, err);
+    STATE.loaded[cat] = true;
+    render();
+  });
+}
+
+function switchTab(tab){
+  STATE.tab = tab; STATE.search=''; STATE.filter='all';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  render();
+}
+
+function computeStatus(item){
+  const total = item.totalSteps || labelsFor(STATE.tab).length;
+  const pct = Math.round(((item.currentStep||0) / total) * 100);
+  const start = item.startDate;
+  let days = null;
+  if(start){
+    if(item.completed && item.completionDate) days = daysBetween(start, item.completionDate);
+    else if(!item.completed) days = daysBetween(start, todayISO());
+  }
+  let statusClass='ongoing', statusText='Devam ediyor';
+  if(item.completed){ statusClass='done'; statusText='Tamamlandı'; }
+  else if(days !== null && days > 60){ statusClass='stalled'; statusText='Gecikiyor'; }
+  return { pct, days, statusClass, statusText };
+}
+
+function buildSummaryPanel(items, labels){
+  const total = items.length;
+  const counts = new Array(labels.length).fill(0);
+  items.forEach(it => {
+    const cs = it.currentStep || 0;
+    if(cs>=1 && cs<=labels.length) counts[cs-1]++;
+  });
+  const palette = ['#2f6fed','#7f77dd','#d85a30','#d4537e','#ba7517','#5dcaa5','#e0997b','#8a8f9c'];
+  const segments = [];
+  counts.forEach((c,i) => {
+    if(c<=0) return;
+    const isDone = i===labels.length-1;
+    const color = isDone ? '#1d9e75' : palette[i % palette.length];
+    segments.push({ i, c, color });
+  });
+  let legendRows = '';
+  segments.forEach(seg => {
+    legendRows += `<div class="legend-row"><span class="dot" style="background:${seg.color}"></span><span>${seg.i+1}. ${escapeHtml(labels[seg.i])}</span></div>`;
+  });
+
+  const size=140, thickness=26, r=(size-thickness)/2, cx=size/2, cy=size/2;
+  const circumference = 2*Math.PI*r;
+  let cumulative = 0, circles = '';
+  segments.forEach(seg => {
+    const frac = total ? seg.c/total : 0;
+    const pct = total ? Math.round(seg.c/total*100) : 0;
+    const dash = frac*circumference;
+    const gap = circumference-dash;
+    const offset = -(cumulative*circumference);
+    cumulative += frac;
+    const info = escapeHtml((seg.i+1)+'. '+labels[seg.i]+' — '+seg.c+' saha · %'+pct);
+    circles += `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.color}" stroke-width="${thickness}"
+      stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
+      onmouseenter="showDonutTip(event,'${info}')" onmousemove="positionDonutTip(event)" onmouseleave="hideDonutTip()"
+      onclick="event.stopPropagation();showDonutTip(event,'${info}')"></circle>`;
+  });
+  const svg = total ? `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+      <g transform="rotate(-90 ${cx} ${cy})">${circles}</g>
+    </svg>` : `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--gray-bg)" stroke-width="${thickness}"></circle>
+    </svg>`;
+
+  const ongoing = items.filter(i => !i.completed);
+  const doneCount = items.length - ongoing.length;
+  let longestName='—', longestDays=null;
+  ongoing.forEach(i => {
+    if(i.startDate){
+      const d = daysBetween(i.startDate, todayISO());
+      if(longestDays===null || d>longestDays){ longestDays=d; longestName = i.sahaAdi || i.sahaKodu || '—'; }
+    }
+  });
+
+  return `<div class="donut-summary">
+    <div class="donut-left">
+      <div class="donut-big">
+        ${svg}
+        <div class="donut-big-hole"><div class="num">${total}</div><div class="lbl">saha</div></div>
+      </div>
+      <div class="legend-list">${legendRows}</div>
+    </div>
+    <div class="mini-stats">
+      <div><div class="mini-stat-lbl">Devam eden / Tamamlanan</div><div class="mini-stat-val">${ongoing.length} / ${doneCount}</div></div>
+      <div><div class="mini-stat-lbl">En uzun bekleyen</div><div class="mini-stat-val">${longestDays!==null ? escapeHtml(longestName)+' · '+longestDays+' gün' : '—'}</div></div>
+    </div>
+  </div>`;
+}
+
+function render(){
+  const cat = STATE.tab;
+  document.getElementById('subtitle').textContent = cat === 'kule'
+    ? 'Kule üzeri saha ilerleme takibi · 8 adımlı süreç'
+    : 'Bina üzeri saha ilerleme takibi · 5 adımlı süreç';
+
+  if(!STATE.loaded[cat]){
+    document.getElementById('content').innerHTML = '<div class="empty">Yükleniyor…</div>';
+    return;
+  }
+
+  const items = STATE.data[cat] || [];
+  const total = items.length;
+  const done = items.filter(i=>i.completed).length;
+  const ongoing = total-done;
+  const stalled = items.filter(i=>!i.completed && i.startDate && daysBetween(i.startDate, todayISO())>60).length;
+
+  let filtered = items.filter(i => {
+    if(STATE.filter==='done' && !i.completed) return false;
+    if(STATE.filter==='ongoing' && i.completed) return false;
+    if(STATE.search){
+      const s = STATE.search.toLowerCase();
+      if(!(i.sahaKodu+' '+i.sahaAdi+' '+i.sahaNo).toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+  filtered = filtered.slice().sort((a,b) => {
+    if(a.completed !== b.completed) return a.completed ? 1 : -1;
+    const da = a.startDate ? daysBetween(a.startDate, todayISO()) : -1;
+    const db_ = b.startDate ? daysBetween(b.startDate, todayISO()) : -1;
+    return db_ - da;
+  });
+
+  const labels = labelsFor(cat);
+  let html = '';
+  html += `<div class="metrics">
+    <div class="metric"><div class="lbl">Toplam saha</div><div class="val">${total}</div></div>
+    <div class="metric"><div class="lbl">Devam eden</div><div class="val">${ongoing}</div></div>
+    <div class="metric"><div class="lbl">Tamamlanan</div><div class="val">${done}</div></div>
+    <div class="metric"><div class="lbl">Gecikiyor (60+ gün)</div><div class="val">${stalled}</div></div>
+  </div>`;
+
+  if(total > 0){
+    html += `<div class="card" style="margin-bottom:16px;">
+      <div class="dist-title">Süreç özeti · toplam ${total} saha</div>
+      <div class="dist-sub">Sahaların adımlara göre dağılımı.</div>
+      ${buildSummaryPanel(items, labels)}
+    </div>`;
+  }
+
+  html += `<div class="controls">
+    <input type="text" class="search" placeholder="Saha kodu, adı veya no ara" value="${escapeHtml(STATE.search)}" oninput="onSearch(this.value)">
+    <select onchange="onFilter(this.value)">
+      <option value="all" ${STATE.filter==='all'?'selected':''}>Tümü</option>
+      <option value="ongoing" ${STATE.filter==='ongoing'?'selected':''}>Devam eden</option>
+      <option value="done" ${STATE.filter==='done'?'selected':''}>Tamamlanan</option>
+    </select>
+    <button class="btn primary" onclick="openAddModal()" style="${STATE.isAdmin?'':'display:none'}">+ Yeni saha ekle</button>
+  </div>`;
+
+  if(filtered.length === 0){
+    html += `<div class="empty">${total===0 ? 'Henüz saha eklenmemiş.' : 'Aramanızla eşleşen saha bulunamadı.'}</div>`;
+  } else {
+    html += '<div class="list">';
+    filtered.forEach(item => {
+      const st = computeStatus(item);
+      const stepLabel = item.currentStep>0 && item.currentStep<=labels.length ? labels[item.currentStep-1] : 'Başlamadı';
+      let counterHtml = '';
+      if(item.startDate){
+        if(item.completed){
+          counterHtml = st.days !== null
+            ? `<span class="counter">Başlangıç: <b>${fmtDate(item.startDate)}</b> · Tamamlanma: <b>${fmtDate(item.completionDate)}</b> · Süre: <b>${st.days} gün</b></span>`
+            : `<span class="counter">Başlangıç: <b>${fmtDate(item.startDate)}</b> · Tamamlandı</span>`;
+        } else {
+          counterHtml = `<span class="counter">Başlangıç: <b>${fmtDate(item.startDate)}</b> · <b>${st.days}</b> gündür devam ediyor</span>`;
+        }
+      } else {
+        counterHtml = `<span class="counter">Başlangıç tarihi girilmemiş</span>`;
+      }
+      const clr = item.completed ? 'var(--green)' : 'var(--accent)';
+      html += `<div class="card">
+        <div class="card-top">
+          <div class="card-left">
+            <div class="saha-name">${escapeHtml(item.sahaAdi || '(isimsiz saha)')}</div>
+            <div class="saha-meta">${escapeHtml(item.sahaKodu||'')}${item.sahaNo ? ' · Saha No: '+escapeHtml(item.sahaNo) : ''}</div>
+            <div class="tags">
+              ${item.enerji ? `<span class="tag energy">${escapeHtml(item.enerji)}</span>` : ''}
+              <span class="status ${st.statusClass}">${st.statusText}</span>
+            </div>
+          </div>
+          <div class="card-right">
+            <div class="donut" style="--pct:${st.pct};--clr:${item.completed?'var(--green)':'var(--accent)'}"><div class="donut-hole">%${st.pct}</div></div>
+          </div>
+        </div>
+        <div class="step-label">Adım ${item.currentStep||0}/${item.totalSteps||labels.length}: ${escapeHtml(stepLabel)}</div>
+        ${item.aciklama ? `<div class="aciklama">${escapeHtml(item.aciklama)}</div>` : ''}
+        <div class="counter-row">
+          ${counterHtml}
+          <div class="card-actions" style="${STATE.isAdmin?'':'display:none'}">
+            <button class="btn small" onclick="openEditModal('${cat}','${item.id}')">Düzenle</button>
+            <button class="btn small danger" onclick="deleteItem('${cat}','${item.id}')">Sil</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  document.getElementById('content').innerHTML = html;
+}
+
+function onSearch(v){ STATE.search=v; render(); }
+function onFilter(v){ STATE.filter=v; render(); }
+
+function emptyItem(cat){
+  const total = labelsFor(cat).length;
+  return { sahaKodu:'', sahaNo:'', enerji:'', sahaAdi:'', aciklama:'',
+    stepNotes:new Array(total).fill(''), currentStep:0, totalSteps:total,
+    completed:false, startDate:todayISO(), completionDate:null };
+}
+function openAddModal(){ if(!STATE.isAdmin){ openLoginModal(); return; } STATE.editing = { cat: STATE.tab, id:null, item: emptyItem(STATE.tab) }; renderModal(); }
+function openEditModal(cat, id){
+  if(!STATE.isAdmin){ openLoginModal(); return; }
+  const item = STATE.data[cat].find(i=>i.id===id);
+  if(!item) return;
+  const copy = JSON.parse(JSON.stringify(item));
+  if(!copy.stepNotes || copy.stepNotes.length !== labelsFor(cat).length) copy.stepNotes = new Array(labelsFor(cat).length).fill('');
+  STATE.editing = { cat, id, item: copy };
+  renderModal();
+}
+function closeModal(){ STATE.editing=null; document.getElementById('modalRoot').innerHTML=''; }
+
+function renderModal(){
+  const { cat, id, item } = STATE.editing;
+  const labels = labelsFor(cat);
+  const catName = cat==='kule' ? 'Kule üzeri' : 'Bina üzeri';
+  let stepsHtml='';
+  labels.forEach((lbl,i) => {
+    stepsHtml += `<div class="step-item"><label>${i+1}. ${escapeHtml(lbl)}</label>
+      <textarea id="stepNote_${i}" placeholder="Not / tarih (opsiyonel)">${escapeHtml(item.stepNotes[i]||'')}</textarea></div>`;
+  });
+  let stepOptions = `<option value="0" ${item.currentStep===0?'selected':''}>Başlamadı</option>`;
+  labels.forEach((lbl,i) => {
+    stepOptions += `<option value="${i+1}" ${item.currentStep===i+1?'selected':''}>${i+1}. ${escapeHtml(lbl)}</option>`;
+  });
+  const html = `<div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal">
+      <h3>${id?'Sahayı düzenle':'Yeni saha ekle'} · ${catName}</h3>
+      <div class="row2">
+        <div class="field"><label>Saha kodu</label><input type="text" id="f_sahaKodu" value="${escapeHtml(item.sahaKodu)}"></div>
+        <div class="field"><label>Saha no</label><input type="text" id="f_sahaNo" value="${escapeHtml(item.sahaNo)}"></div>
+      </div>
+      <div class="field"><label>Saha adı</label><input type="text" id="f_sahaAdi" value="${escapeHtml(item.sahaAdi)}"></div>
+      <div class="row2">
+        <div class="field"><label>Enerji</label><input type="text" id="f_enerji" value="${escapeHtml(item.enerji)}" placeholder="Geçici Süzme, Abone..."></div>
+        <div class="field"><label>Başlangıç tarihi</label><input type="date" id="f_startDate" value="${item.startDate||''}"></div>
+      </div>
+      <div class="field"><label>Açıklama</label><textarea id="f_aciklama">${escapeHtml(item.aciklama)}</textarea></div>
+      <div class="field"><label>Bulunduğu adım</label><select id="f_currentStep">${stepOptions}</select></div>
+      <div class="field" id="f_compDateWrap" style="${item.currentStep>=labels.length?'':'display:none'}">
+        <label>Tamamlanma tarihi</label><input type="date" id="f_completionDate" value="${item.completionDate||''}">
+      </div>
+      <details class="steps-detail"><summary>Adım notlarını göster / düzenle</summary>${stepsHtml}</details>
+      <div id="formErr" class="err" style="display:none"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Vazgeç</button>
+        <button class="btn primary" onclick="saveItem()">Kaydet</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+  const stepSel = document.getElementById('f_currentStep');
+  stepSel.addEventListener('change', () => {
+    const v = parseInt(stepSel.value,10);
+    document.getElementById('f_compDateWrap').style.display = v>=labels.length ? '' : 'none';
+  });
+}
+
+async function saveItem(){
+  if(!STATE.isAdmin){ return; }
+  const { cat, id, item } = STATE.editing;
+  const labels = labelsFor(cat);
+  const sahaAdi = document.getElementById('f_sahaAdi').value.trim();
+  const errEl = document.getElementById('formErr');
+  if(!sahaAdi){ errEl.textContent='Saha adı zorunludur.'; errEl.style.display='block'; return; }
+  const currentStep = parseInt(document.getElementById('f_currentStep').value,10);
+  const stepNotes = labels.map((_,i) => { const el=document.getElementById('stepNote_'+i); return el?el.value:''; });
+  const startDate = document.getElementById('f_startDate').value || null;
+  const completed = currentStep >= labels.length;
+  let completionDate = null;
+  if(completed) completionDate = document.getElementById('f_completionDate').value || todayISO();
+  const doc = {
+    sahaKodu: document.getElementById('f_sahaKodu').value.trim(),
+    sahaNo: document.getElementById('f_sahaNo').value.trim(),
+    enerji: document.getElementById('f_enerji').value.trim(),
+    sahaAdi, aciklama: document.getElementById('f_aciklama').value.trim(),
+    stepNotes, currentStep, totalSteps: labels.length, completed, startDate, completionDate,
+    updatedAt: new Date().toISOString(),
+  };
+  try{
+    const coll = fdb.collection(collFor(cat));
+    if(id){
+      await coll.doc(id).update(doc);
+    } else {
+      const newId = 'saha_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      await coll.doc(newId).set(doc);
+    }
+    closeModal();
+  }catch(e){
+    console.error(e);
+    errEl.textContent = 'Kaydedilemedi: bağlantı sorunu olabilir.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function deleteItem(cat, id){
+  if(!STATE.isAdmin){ return; }
+  if(!confirm('Bu sahayı silmek istediğinize emin misiniz?')) return;
+  try{
+    await fdb.collection(collFor(cat)).doc(id).delete();
+  }catch(e){
+    alert('Silinemedi: bağlantı sorunu olabilir.');
+  }
+}
+
+function showDonutTip(evt, text){
+  const tip = document.getElementById('donutTooltip');
+  tip.textContent = text;
+  tip.style.display = 'block';
+  positionDonutTip(evt);
+}
+function positionDonutTip(evt){
+  const tip = document.getElementById('donutTooltip');
+  const x = evt.clientX, y = evt.clientY;
+  const vw = window.innerWidth;
+  tip.style.left = (x + tip.offsetWidth + 18 > vw ? x - tip.offsetWidth - 14 : x + 14) + 'px';
+  tip.style.top = (y - 12) + 'px';
+}
+function hideDonutTip(){
+  document.getElementById('donutTooltip').style.display = 'none';
+}
+document.addEventListener('click', (e) => {
+  if(!e.target.classList || !e.target.classList.contains('donut-seg')) hideDonutTip();
+});
+
+function renderAuthBadge(){
+  const el = document.getElementById('authBadge');
+  if(!el) return;
+  if(STATE.isAdmin){
+    el.innerHTML = `<div class="auth-wrap"><span class="badge-role admin">Yönetici girişi yapıldı</span><button class="link-btn" onclick="logout()">Çıkış yap</button></div>`;
+  } else {
+    el.innerHTML = `<div class="auth-wrap"><span class="badge-role">Görüntüleyici</span><button class="link-btn" onclick="openLoginModal()">Giriş yap</button></div>`;
+  }
+}
+
+function openLoginModal(){
+  const html = `<div class="modal-overlay" onclick="if(event.target===this) closeLoginModal()">
+    <div class="modal" style="max-width:360px;">
+      <h3>Yönetici girişi</h3>
+      <div class="field"><label>Kullanıcı adı</label><input type="text" id="loginUser" autocomplete="username"></div>
+      <div class="field"><label>Şifre</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+      <div id="loginErr" class="err" style="display:none">Kullanıcı adı veya şifre hatalı.</div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeLoginModal()">Vazgeç</button>
+        <button class="btn primary" onclick="doLogin()">Giriş yap</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+  const passEl = document.getElementById('loginPass');
+  passEl.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  document.getElementById('loginUser').focus();
+}
+function closeLoginModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function doLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  if(u===ADMIN_USER && p===ADMIN_PASS){
+    STATE.isAdmin = true;
+    try{ sessionStorage.setItem(SESSION_KEY, '1'); }catch(e){}
+    closeLoginModal();
+    renderAuthBadge();
+    render();
+  } else {
+    document.getElementById('loginErr').style.display = 'block';
+  }
+}
+function logout(){
+  STATE.isAdmin = false;
+  try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+  renderAuthBadge();
+  render();
+}
+
+try{ STATE.isAdmin = sessionStorage.getItem(SESSION_KEY) === '1'; }catch(e){}
+renderAuthBadge();
+(async function boot(){
+  await ensureSeeded();
+  subscribe('kule');
+  subscribe('bina');
+  render();
+})();
+</script>
+</body>
+</html>
