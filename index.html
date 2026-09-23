@@ -169,6 +169,7 @@ input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{bor
 .contact-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;}
 .contact-row-label{font-size:13px;font-weight:600;color:var(--text);}
 .contact-row-email{font-size:12px;color:var(--text-muted);margin-top:1px;}
+.history-scroll{max-height:260px;overflow-y:auto;padding-right:2px;}
 
 /* ---- Pusula chatbot widget ---- */
 .chat-fab{
@@ -654,13 +655,21 @@ function buildSummaryPanel(items, labels){
 }
 
 function render(){
-  // Arama kutusu her render()'da yeniden oluşturulduğu için odağı (ve imleç
-  // konumunu) kaybediyordu — her tuşta kutunun dışına tıklamış gibi oluyordu.
-  // Render öncesi odaklıysa hatırlayıp render sonrası geri veriyoruz.
+  // render() her Firestore onSnapshot tetiklendiğinde (yani başka BİR saha
+  // değişse, mail otomasyonu arka planda bir alan güncellese, hatta kendi
+  // kaydımızın sunucu onayı gelse bile) yeniden çağrılabiliyor. Açık bir
+  // satır içi düzenleme formu varsa, kullanıcının o ana kadar yazdıklarını
+  // kaybetmemek için önce formu STATE.editing.item'a senkronize ediyoruz.
+  syncEditingFormToState_();
+
+  // Odaklı bir alan (arama kutusu veya form içindeki herhangi bir input/
+  // textarea/select) varsa, render sonrası odağı ve imleç konumunu geri
+  // veriyoruz — aksi halde her render'da kullanıcı sanki kutunun dışına
+  // tıklamış gibi odağını kaybediyor.
   const activeEl = document.activeElement;
-  const restoreSearchFocus = activeEl && activeEl.id === 'searchInput';
-  const selStart = restoreSearchFocus ? activeEl.selectionStart : null;
-  const selEnd = restoreSearchFocus ? activeEl.selectionEnd : null;
+  const restoreFocusId = (activeEl && activeEl.id && document.getElementById('content') && document.getElementById('content').contains(activeEl)) ? activeEl.id : null;
+  const selStart = (restoreFocusId && typeof activeEl.selectionStart === 'number') ? activeEl.selectionStart : null;
+  const selEnd = (restoreFocusId && typeof activeEl.selectionEnd === 'number') ? activeEl.selectionEnd : null;
 
   const cat = STATE.tab;
   document.getElementById('subtitle').textContent = cat === 'kule'
@@ -776,13 +785,19 @@ function render(){
   }
   document.getElementById('content').innerHTML = html;
   renderEmailDatalist();
-  if(STATE.editing && STATE.editing.mode==='inline'){ bindStepSelectListener_(labelsFor(STATE.editing.cat), STATE.editing.item); }
+  if(STATE.editing && STATE.editing.mode==='inline'){
+    const editLabels = labelsFor(STATE.editing.cat);
+    bindStepSelectListener_(editLabels, STATE.editing.item);
+    bindQuickAssignSync_(STATE.editing.item, editLabels);
+  }
 
-  if(restoreSearchFocus){
-    const newSearchEl = document.getElementById('searchInput');
-    if(newSearchEl){
-      newSearchEl.focus();
-      try{ newSearchEl.setSelectionRange(selStart, selEnd); }catch(e){}
+  if(restoreFocusId){
+    const newActiveEl = document.getElementById(restoreFocusId);
+    if(newActiveEl){
+      newActiveEl.focus();
+      if(selStart!=null && typeof newActiveEl.setSelectionRange === 'function'){
+        try{ newActiveEl.setSelectionRange(selStart, selEnd); }catch(e){}
+      }
     }
   }
 }
@@ -853,7 +868,8 @@ function emptyItem(cat){
 }
 function openAddModal(){
   if(!STATE.isAdmin){ openLoginModal(); return; }
-  STATE.editing = { cat: STATE.tab, id:null, item: emptyItem(STATE.tab), mode:'modal' };
+  const fresh = emptyItem(STATE.tab);
+  STATE.editing = { cat: STATE.tab, id:null, item: fresh, original: JSON.parse(JSON.stringify(fresh)), mode:'modal' };
   renderModal();
 }
 function toggleInlineEdit(cat, id){
@@ -868,7 +884,14 @@ function toggleInlineEdit(cat, id){
   if(!copy.stepNotes || copy.stepNotes.length !== total) copy.stepNotes = new Array(total).fill('');
   if(!copy.stepContacts || copy.stepContacts.length !== total) copy.stepContacts = new Array(total).fill('');
   if(!copy.stepMailDays || copy.stepMailDays.length !== total) copy.stepMailDays = new Array(total).fill('');
-  STATE.editing = { cat, id, item: copy, mode:'inline' };
+  // "original": düzenleme başladığı andaki DEĞİŞMEYECEK anlık görüntü.
+  // "item" ise formda o an yazılanları yansıtan CANLI kopya — arka planda
+  // render() tekrar çalıştığında kullanıcının yazdıklarının kaybolmaması için
+  // syncEditingFormToState_() bunu sürekli günceller (bkz. o fonksiyonun
+  // yorumu). saveItem() değişip değişmediğini ve "önceki" adım/tarih gibi
+  // bilgileri hep "original"dan okumalı — yoksa "item" zaten güncel forma eşit
+  // hale geldiği için hiçbir şey değişmemiş gibi görünür.
+  STATE.editing = { cat, id, item: copy, original: JSON.parse(JSON.stringify(copy)), mode:'inline' };
   render();
 }
 function closeModal(){
@@ -910,6 +933,110 @@ function bindStepSelectListener_(labels, item){
       qDays.value = (v>=1 && item.stepMailDays && item.stepMailDays[v-1]!=null) ? item.stepMailDays[v-1] : '';
     }
   });
+}
+
+// "Şu anki adımın taşeron maili" (hızlı atama) kutuları ile "Tüm adımların
+// notlarını / maillerini göster" altındaki, BULUNULAN ADIMLA AYNI İNDEKSE
+// denk gelen kişi/gün kutuları, aslında aynı veriyi (stepContacts[i] /
+// stepMailDays[i]) iki farklı yerden gösteriyor. Eskiden saveItem() bulunulan
+// adım için hızlı atama kutusundaki değeri KOŞULSUZ olarak per-adım kutusunun
+// ÜZERİNE yazıyordu — yani kullanıcı "Tüm adımların..." bölümünü açıp o
+// adımın kişisini/gününü oradan değiştirdiğinde, formun üstündeki (eski,
+// dokunulmamış) hızlı atama değeri sessizce geri yazılıp yapılan değişikliği
+// siliyordu. Çözüm: iki kutuyu CANLI olarak birbirine bağlıyoruz, böylece
+// hangisinden değiştirilirse değiştirilsin ikisi de hep aynı (güncel) değeri
+// gösteriyor ve kaydederken tek, tutarlı bir kaynaktan (per-adım kutusu)
+// okunuyor.
+function bindQuickAssignSync_(item, labels){
+  const quickSel = document.getElementById('f_quickContact');
+  const quickDays = document.getElementById('f_quickMailDays');
+  const stepSel = document.getElementById('f_currentStep');
+  const curIdx = () => {
+    const v = parseInt(stepSel ? stepSel.value : item.currentStep, 10);
+    return (v>=1 && v<=labels.length) ? v-1 : -1;
+  };
+  if(quickSel){
+    quickSel.addEventListener('change', () => {
+      const idx = curIdx();
+      if(idx<0) return;
+      const target = document.getElementById('stepContact_'+idx);
+      if(target) target.value = quickSel.value;
+    });
+  }
+  if(quickDays){
+    quickDays.addEventListener('input', () => {
+      const idx = curIdx();
+      if(idx<0) return;
+      const target = document.getElementById('stepMailDays_'+idx);
+      if(target) target.value = quickDays.value;
+    });
+  }
+  labels.forEach((_,i) => {
+    const contactEl = document.getElementById('stepContact_'+i);
+    if(contactEl){
+      contactEl.addEventListener('change', () => {
+        if(curIdx() === i && quickSel) quickSel.value = contactEl.value;
+      });
+    }
+    const daysEl = document.getElementById('stepMailDays_'+i);
+    if(daysEl){
+      daysEl.addEventListener('input', () => {
+        if(curIdx() === i && quickDays) quickDays.value = daysEl.value;
+      });
+    }
+  });
+}
+
+// Satır içi ("inline") düzenleme formu, sahaların listesiyle AYNI render()
+// fonksiyonu tarafından çiziliyor. Firestore'daki onSnapshot dinleyicisi ise
+// bu koleksiyona yapılan HERHANGİ bir yazmada (başka bir saha düzenlense,
+// mail otomasyonu arka planda bir alanı güncellese, hatta kendi kaydımızın
+// sunucudan geri dönen onayında bile) render()'ı tekrar çağırıyor. render()
+// de STATE.editing.item'daki (formu AÇARKEN alınmış, kullanıcının o ana
+// kadar YAZDIKLARINI içermeyen) eski kopyadan formu YENİDEN oluşturuyordu —
+// yani kullanıcı bir adımın kişisini/gün sayısını/notunu yazarken arka
+// planda bambaşka bir kayıt değişse bile, ekrandaki yazdıkları sessizce
+// silinip eski haline dönüyordu. "Kaydet"e basıldığında da artık DOM'da
+// eski (değişmemiş) değerler olduğu için hiçbir şey kaydedilmiş gibi
+// görünmüyordu, ama sürüm geçmişine yine de yeni bir kayıt ekleniyordu.
+// Çözüm: her render()'dan HEMEN ÖNCE, formdaki mevcut (kullanıcının o ana
+// kadar yazdığı) değerleri STATE.editing.item'a geri yazıyoruz, böylece
+// form yeniden çizilse bile kullanıcının girdiği veriler korunuyor.
+function syncEditingFormToState_(){
+  if(!STATE.editing || STATE.editing.mode !== 'inline') return;
+  const item = STATE.editing.item;
+  const labels = labelsFor(STATE.editing.cat);
+  const g = (elId) => document.getElementById(elId);
+
+  if(g('f_sahaKodu')) item.sahaKodu = g('f_sahaKodu').value;
+  if(g('f_sahaNo')) item.sahaNo = g('f_sahaNo').value;
+  if(g('f_sahaAdi')) item.sahaAdi = g('f_sahaAdi').value;
+  if(g('f_enerji')) item.enerji = g('f_enerji').value;
+  if(g('f_startDate')) item.startDate = g('f_startDate').value || null;
+  if(g('f_aciklama')) item.aciklama = g('f_aciklama').value;
+  if(g('f_contactEmail')) item.contactEmail = g('f_contactEmail').value;
+  if(g('f_hikaye')) item.hikaye = g('f_hikaye').value;
+  if(g('f_completionDate')) item.completionDate = g('f_completionDate').value || null;
+  if(g('f_currentStep')) item.currentStep = parseInt(g('f_currentStep').value,10);
+
+  if(!item.stepNotes || item.stepNotes.length!==labels.length) item.stepNotes = new Array(labels.length).fill('');
+  if(!item.stepContacts || item.stepContacts.length!==labels.length) item.stepContacts = new Array(labels.length).fill('');
+  if(!item.stepMailDays || item.stepMailDays.length!==labels.length) item.stepMailDays = new Array(labels.length).fill('');
+
+  labels.forEach((_,i) => {
+    const noteEl = g('stepNote_'+i);
+    if(noteEl) item.stepNotes[i] = noteEl.value;
+    const contactEl = g('stepContact_'+i);
+    if(contactEl) item.stepContacts[i] = contactEl.value.trim();
+    const daysEl = g('stepMailDays_'+i);
+    if(daysEl) item.stepMailDays[i] = daysEl.value!=='' ? parseInt(daysEl.value,10) : '';
+  });
+
+  // NOT: hızlı atama kutuları ("Şu anki adımın taşeron maili") artık
+  // bindQuickAssignSync_() ile per-adım kutularına CANLI bağlı — ayrıca
+  // burada tekrar üzerine yazmaya gerek yok (bkz. bindQuickAssignSync_
+  // yorumu). Aksi halde bu iki kutu birbirinden habersiz kalıp biri
+  // diğerinin yaptığı değişikliği sessizce silebiliyordu.
 }
 
 function buildEditFieldsHtml_(cat, id, item, labels){
@@ -965,7 +1092,7 @@ function buildEditFieldsHtml_(cat, id, item, labels){
       <details class="steps-detail"><summary>Tüm adımların notlarını / maillerini göster</summary>${stepsHtml}</details>
       ${(id && item.history && item.history.length) ? `<details class="story-detail">
         <summary><svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 12a9 9 0 109-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 4v5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Sürüm geçmişi (${item.history.length}) <span class="story-hint">— yanlış bir değişiklik olduysa buradan geri dönebilirsiniz</span></summary>
-        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div class="history-scroll" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
           ${item.history.map((h,i) => `<div class="contact-row">
             <div class="contact-row-info">
               <div class="contact-row-label">${fmtDateTime(h.savedAt)}${h.snapshot.updatedBy?(' · Kaydeden: '+escapeHtml(h.snapshot.updatedBy)):''}</div>
@@ -1006,11 +1133,18 @@ function renderModal(){
   document.getElementById('modalRoot').innerHTML = html;
   renderEmailDatalist();
   bindStepSelectListener_(labels, item);
+  bindQuickAssignSync_(item, labels);
 }
 
 async function saveItem(){
   if(!STATE.isAdmin){ return; }
   const { cat, id, item } = STATE.editing;
+  // "original": düzenleme açıldığı andaki DEĞİŞMEMİŞ hal — "kaydetmeden
+  // önceki adım neydi", "sürüm geçmişine ne kaydedilecek", "hiçbir şey
+  // değişmedi mi" gibi karşılaştırmalar hep buradan yapılmalı. "item" artık
+  // formun o anki CANLI aynası olduğu için (bkz. syncEditingFormToState_),
+  // "item" ile karşılaştırmak her zaman "değişmedi" sonucu verir.
+  const original = STATE.editing.original || item;
   const labels = labelsFor(cat);
   const sahaAdi = document.getElementById('f_sahaAdi').value.trim();
   const errEl = document.getElementById('formErr');
@@ -1019,31 +1153,31 @@ async function saveItem(){
   const stepNotes = labels.map((_,i) => { const el=document.getElementById('stepNote_'+i); return el?el.value:''; });
   const stepContacts = labels.map((_,i) => { const el=document.getElementById('stepContact_'+i); return el?el.value.trim():''; });
   const stepMailDays = labels.map((_,i) => { const el=document.getElementById('stepMailDays_'+i); return (el && el.value!=='') ? parseInt(el.value,10) : ''; });
-  const quickEl = document.getElementById('f_quickContact');
-  if(quickEl && currentStep>=1 && currentStep<=labels.length){ stepContacts[currentStep-1] = quickEl.value.trim(); }
-  const quickDaysEl = document.getElementById('f_quickMailDays');
-  if(quickDaysEl && currentStep>=1 && currentStep<=labels.length){ stepMailDays[currentStep-1] = quickDaysEl.value!=='' ? parseInt(quickDaysEl.value,10) : ''; }
+  // NOT: "Şu anki adımın taşeron maili" (hızlı atama) kutuları artık
+  // bindQuickAssignSync_() ile ilgili per-adım kutusuna CANLI bağlı, yani
+  // stepContacts/stepMailDays zaten yukarıdaki per-adım kutularından doğru
+  // okunuyor — burada ayrıca üzerine yazmıyoruz (bkz. bindQuickAssignSync_).
   const startDate = document.getElementById('f_startDate').value || null;
   const completed = currentStep >= labels.length;
   let completionDate = null;
   if(completed) completionDate = document.getElementById('f_completionDate').value || todayISO();
   // stepDates: mail scriptindeki gecikme sayacı (getEntryDate) bu diziyi okuyor.
   // Adım değiştiyse, yeni adıma bugün girildiğini kaydediyoruz (var olan tarihleri koruyarak).
-  const stepDates = (item.stepDates && item.stepDates.length===labels.length) ? item.stepDates.slice() : new Array(labels.length).fill(null);
-  if(currentStep>=1 && currentStep!==item.currentStep){ stepDates[currentStep-1] = todayISO(); }
+  const stepDates = (original.stepDates && original.stepDates.length===labels.length) ? original.stepDates.slice() : new Array(labels.length).fill(null);
+  if(currentStep>=1 && currentStep!==original.currentStep){ stepDates[currentStep-1] = todayISO(); }
   const doc = {
     sahaKodu: document.getElementById('f_sahaKodu').value.trim(),
     sahaNo: document.getElementById('f_sahaNo').value.trim(),
     enerji: document.getElementById('f_enerji').value.trim(),
     sahaAdi, aciklama: document.getElementById('f_aciklama').value.trim(),
     contactEmail: document.getElementById('f_contactEmail').value.trim(),
-    hikaye: (document.getElementById('f_hikaye')?document.getElementById('f_hikaye').value.trim():(item.hikaye||'')),
+    hikaye: (document.getElementById('f_hikaye')?document.getElementById('f_hikaye').value.trim():(original.hikaye||'')),
     stepNotes, stepContacts, stepMailDays, stepDates, currentStep, totalSteps: labels.length, completed, startDate, completionDate,
     // Adım elle değiştirildiyse, o adım için "bildirim gönderildi" bilgisini
     // sıfırlıyoruz — otomatik ilerlemede (mailscript.gs / processReplies) zaten
     // aynısı yapılıyor. Bu olmadan, bir adım geri alınıp tekrar aynı adıma
     // getirildiğinde sistem "zaten bildirdim" sanıp mail atmayı atlayabiliyordu.
-    notifiedStep: (currentStep !== item.currentStep) ? null : (item.notifiedStep ?? null),
+    notifiedStep: (currentStep !== original.currentStep) ? null : (original.notifiedStep ?? null),
     updatedAt: new Date().toISOString(),
     // Bu değişikliği hangi kullanıcı yaptı — sürüm geçmişinde ve saha detayında
     // "kim düzenledi" bilgisini gösterebilmek için.
@@ -1053,11 +1187,31 @@ async function saveItem(){
   // biri yanlışlıkla bir tarihi/adımı değiştirip kaydederse, düzenleme
   // panelindeki "Sürüm geçmişi" bölümünden bir önceki (veya daha eski) haline
   // geri dönebilir. Sonsuza kadar büyümesin diye son 15 kayıtla sınırlıyoruz.
+  // Gerçekten bir şey DEĞİŞMEDİYSE (ör. form hiçbir alan değiştirilmeden
+  // "Kaydet"e basıldıysa) geçmişe boş/tekrarlayan bir kayıt eklemiyoruz —
+  // aksi halde liste anlamsız kayıtlarla şişip kafa karıştırıyordu.
   if(id){
-    const prevSnapshot = {...item};
+    const prevSnapshot = {...original};
     delete prevSnapshot.history;
-    const existingHistory = Array.isArray(item.history) ? item.history : [];
-    doc.history = [{ savedAt: new Date().toISOString(), snapshot: prevSnapshot }, ...existingHistory].slice(0,15);
+    delete prevSnapshot.updatedAt;
+    delete prevSnapshot.updatedBy;
+    // Karşılaştırmayı sadece kullanıcının GERÇEKTEN değiştirebileceği
+    // alanlarla sınırlıyoruz (id, history, notifiedStep, updatedAt/By gibi
+    // "yan" alanlar hariç) — aksi halde eski kayıtta bulunup doc'ta hiç
+    // bulunmayan bir alan (ör. id) yüzünden hiçbir şey değişmese bile
+    // "değişti" sanılabiliyordu.
+    const compareKeys = ['sahaKodu','sahaNo','enerji','sahaAdi','aciklama','contactEmail','hikaye',
+      'stepNotes','stepContacts','stepMailDays','stepDates','currentStep','totalSteps','completed',
+      'startDate','completionDate'];
+    const comparableDoc = {}; compareKeys.forEach(k => comparableDoc[k] = doc[k]);
+    const comparablePrev = {}; compareKeys.forEach(k => comparablePrev[k] = prevSnapshot[k]);
+    const changed = JSON.stringify(comparableDoc) !== JSON.stringify(comparablePrev);
+    if(changed){
+      const existingHistory = Array.isArray(original.history) ? original.history : [];
+      doc.history = [{ savedAt: new Date().toISOString(), snapshot: prevSnapshot }, ...existingHistory].slice(0,15);
+    } else if(Array.isArray(original.history)){
+      doc.history = original.history;
+    }
   }
   try{
     const coll = fdb.collection(collFor(cat));
