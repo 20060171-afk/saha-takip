@@ -965,23 +965,34 @@ function exportToExcelBasic_(){
   XLSX.writeFile(wb, fname);
 }
 
-// Durum rengini (kartlardaki rozetlerle aynı mantık) Excel dolgu rengine çeviriyor.
-function statusFillColor_(item){
-  const st = computeStatus(item);
-  if(st.statusClass === 'done') return 'FFDCFCE7';      // yeşil (açık)
-  if(st.statusClass === 'stalled') return 'FFFCE8D6';   // amber (açık)
-  return 'FFDDF3F3';                                     // teal (açık) — devam ediyor
+// Sütun numarasını Excel harfine çevirir (1->A, 27->AA, ...) — formül
+// metinlerinde hücre adresi üretmek için kullanılıyor.
+function colLetter_(n){
+  let s = '';
+  while(n > 0){
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
 }
-function statusFontColor_(item){
-  const st = computeStatus(item);
-  if(st.statusClass === 'done') return 'FF0A6B4F';
-  if(st.statusClass === 'stalled') return 'FF8A5209';
-  return 'FF0B6E6E';
+// "YYYY-MM-DD" metnini, saat dilimi kaymasına uğramayan GERÇEK bir Excel
+// tarihine (JS Date, yerel gün/ay/yıl ile) çeviriyor — böylece Excel'de bu
+// hücrelerle tarih farkı gibi formüller (=Tamamlanma-Başlangıç) çalışır.
+function toExcelDate_(iso){
+  if(!iso) return null;
+  const parts = String(iso).split('-');
+  if(parts.length !== 3) return null;
+  const y = parseInt(parts[0],10), m = parseInt(parts[1],10), d = parseInt(parts[2],10);
+  if(!y || !m || !d) return null;
+  return new Date(y, m-1, d);
 }
 
 // Bir kategori (kule/bina) için, TÜM adımların not/kişi/gün/tarih bilgisini
-// içeren, renklendirilmiş, başlıkları donmuş (freeze pane) bir sayfa
-// oluşturur. Hiçbir veri özetlenip atılmıyor — her adımın kendi sütunu var.
+// içeren, renklendirilmiş, FORMÜLLÜ (İlerleme %, Durum, Gün Sayısı Excel'in
+// kendisi tarafından hesaplanıyor — dosyayı ileride açtığında güncel kalır)
+// ve başlıkları donmuş (freeze pane) bir sayfa oluşturur. Hiçbir veri
+// özetlenip atılmıyor — her adımın kendi sütunu var.
 function addStyledSheet_(wb, cat, sheetName){
   const labels = labelsFor(cat);
   const items = (STATE.data[cat] || []).slice().sort((a,b) => (a.sahaAdi||'').localeCompare(b.sahaAdi||'', 'tr'));
@@ -989,11 +1000,22 @@ function addStyledSheet_(wb, cat, sheetName){
 
   const fixedCols = [
     { header:'Saha Kodu', width:14 }, { header:'Saha No', width:12 }, { header:'Enerji', width:16 },
-    { header:'Saha Adı', width:26 }, { header:'Açıklama', width:32 }, { header:'Bulunduğu Adım', width:24 },
-    { header:'İlerleme (%)', width:12 }, { header:'Durum', width:14 },
+    { header:'Saha Adı', width:26 }, { header:'Açıklama', width:32 },
+    { header:'Şu Anki Adım', width:12 }, { header:'Toplam Adım', width:12 }, { header:'Adım Adı', width:24 },
+    { header:'İlerleme (%)', width:12 }, { header:'Durum', width:16 },
     { header:'Başlangıç Tarihi', width:14 }, { header:'Tamamlanma Tarihi', width:16 }, { header:'Gün Sayısı', width:11 },
     { header:'Son Düzenleyen', width:16 },
   ];
+  // Formüllerde referans vereceğimiz sabit sütunların indeksleri (1 = A).
+  const COL = {
+    cur: fixedCols.findIndex(c=>c.header==='Şu Anki Adım')+1,
+    tot: fixedCols.findIndex(c=>c.header==='Toplam Adım')+1,
+    prog: fixedCols.findIndex(c=>c.header==='İlerleme (%)')+1,
+    durum: fixedCols.findIndex(c=>c.header==='Durum')+1,
+    start: fixedCols.findIndex(c=>c.header==='Başlangıç Tarihi')+1,
+    comp: fixedCols.findIndex(c=>c.header==='Tamamlanma Tarihi')+1,
+    days: fixedCols.findIndex(c=>c.header==='Gün Sayısı')+1,
+  };
   const perStepHeaders = ['Not', 'Kişi (mail)', 'Kaç gün sonra', 'Tarih'];
 
   // 1. satır: sabit sütunlar için tek büyük birleşik başlık hücresi, her
@@ -1001,7 +1023,7 @@ function addStyledSheet_(wb, cat, sheetName){
   const totalFixed = fixedCols.length;
   ws.mergeCells(1, 1, 1, totalFixed);
   const genelCell = ws.getCell(1, 1);
-  genelCell.value = 'Genel bilgiler';
+  genelCell.value = 'Genel bilgiler (İlerleme / Durum / Gün Sayısı sütunları Excel formülüdür — canlı hesaplanır)';
   labels.forEach((lbl, i) => {
     const startCol = totalFixed + 1 + i*perStepHeaders.length;
     const endCol = startCol + perStepHeaders.length - 1;
@@ -1038,41 +1060,77 @@ function addStyledSheet_(wb, cat, sheetName){
   });
 
   // Veri satırları — HİÇBİR alan atlanmıyor, her adımın notu/kişisi/günü/
-  // tarihi ayrı bir sütunda tek tek yer alıyor.
+  // tarihi ayrı bir sütunda tek tek yer alıyor. İlerleme (%), Durum ve Gün
+  // Sayısı sütunları GERÇEK EXCEL FORMÜLÜ: dosyayı Excel'de açtığında (ör.
+  // haftalar sonra) hâlâ doğru sonucu gösterirler, sadece o anki durumun
+  // donmuş bir fotoğrafı değildirler.
   items.forEach((item, idx) => {
-    const st = computeStatus(item);
+    const r = idx + 3; // 1 ve 2. satırlar başlık; veri 3. satırdan başlıyor.
     const stepLabel = item.currentStep>0 && item.currentStep<=labels.length ? labels[item.currentStep-1] : 'Başlamadı';
+    const curL = colLetter_(COL.cur), totL = colLetter_(COL.tot), startL = colLetter_(COL.start), compL = colLetter_(COL.comp);
     const rowValues = [
       item.sahaKodu||'', item.sahaNo||'', item.enerji||'', item.sahaAdi||'', item.aciklama||'',
-      `${item.currentStep||0}/${item.totalSteps||labels.length} · ${stepLabel}`,
-      st.pct, st.statusText,
-      item.startDate ? fmtDate(item.startDate) : '', item.completionDate ? fmtDate(item.completionDate) : '',
-      st.days !== null ? st.days : '', item.updatedBy || '',
+      item.currentStep||0, item.totalSteps||labels.length, stepLabel,
+      { formula: `IFERROR(ROUND(${curL}${r}/${totL}${r}*100,0),0)` },
+      { formula: `IF(${curL}${r}>=${totL}${r},"Tamamlandı",IF(AND(${startL}${r}<>"",(TODAY()-${startL}${r})>60),"Gecikiyor (60+ gün)","Devam ediyor"))` },
+      toExcelDate_(item.startDate), toExcelDate_(item.completionDate),
+      { formula: `IF(${compL}${r}<>"",${compL}${r}-${startL}${r},IF(${startL}${r}<>"",TODAY()-${startL}${r},""))` },
+      item.updatedBy || '',
     ];
     labels.forEach((_, i) => {
       rowValues.push(
         (item.stepNotes && item.stepNotes[i]) || '',
         (item.stepContacts && item.stepContacts[i]) || '',
         (item.stepMailDays && item.stepMailDays[i]!=null && item.stepMailDays[i]!=='') ? item.stepMailDays[i] : '',
-        (item.stepDates && item.stepDates[i]) ? fmtDate(item.stepDates[i]) : '',
+        toExcelDate_(item.stepDates && item.stepDates[i]),
       );
     });
     const row = ws.addRow(rowValues);
+    row.getCell(COL.start).numFmt = 'dd.mm.yyyy';
+    row.getCell(COL.comp).numFmt = 'dd.mm.yyyy';
+    labels.forEach((_, i) => {
+      const dateCol = totalFixed + i*perStepHeaders.length + 4;
+      row.getCell(dateCol).numFmt = 'dd.mm.yyyy';
+    });
     const zebra = idx % 2 === 1;
     row.eachCell({ includeEmpty:true }, (cell, colNumber) => {
-      cell.alignment = { vertical:'middle', wrapText: colNumber===5 };
+      cell.alignment = { vertical:'middle', wrapText: colNumber===5, horizontal: (colNumber===COL.prog||colNumber===COL.durum) ? 'center' : undefined };
       cell.border = { top:{style:'hair',color:{argb:'FFDDE2E8'}}, bottom:{style:'hair',color:{argb:'FFDDE2E8'}}, left:{style:'hair',color:{argb:'FFDDE2E8'}}, right:{style:'hair',color:{argb:'FFDDE2E8'}} };
-      if(zebra && colNumber !== 8){ cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF7F9FA' } }; }
+      if(zebra && colNumber !== COL.durum){ cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF7F9FA' } }; }
     });
-    // "Durum" sütunu (8.), kartlardaki rozetlerle aynı renkte.
-    const durumCell = row.getCell(8);
-    durumCell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: statusFillColor_(item) } };
-    durumCell.font = { bold:true, color:{ argb: statusFontColor_(item) } };
-    durumCell.alignment = { vertical:'middle', horizontal:'center' };
+    row.getCell(COL.durum).font = { bold:true };
   });
 
   ws.autoFilter = { from:{ row:2, column:1 }, to:{ row:2, column: headerRowValues.length } };
   ws.views = [{ state:'frozen', xSplit:0, ySplit:2 }];
+
+  // Koşullu biçimlendirme: "Durum" metnine göre renk (formül sonucu neyse
+  // renk de ONA göre — istatistik dosya oluştuktan sonra değişse bile
+  // (ör. bir saha 60 günü geçince) renk de otomatik güncellenir), ve
+  // "İlerleme (%)" sütununda görsel bir veri çubuğu.
+  const lastRow = items.length + 2;
+  if(items.length > 0){
+    const durumL = colLetter_(COL.durum), progL = colLetter_(COL.prog);
+    ws.addConditionalFormatting({
+      ref: `${durumL}3:${durumL}${lastRow}`,
+      rules: [
+        { type:'containsText', operator:'containsText', text:'Tamamlandı', priority:1,
+          formulae:[`NOT(ISERROR(SEARCH("Tamamlandı",${durumL}3)))`],
+          style:{ fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFDCFCE7' } }, font:{ color:{ argb:'FF0A6B4F' }, bold:true } } },
+        { type:'containsText', operator:'containsText', text:'Gecikiyor', priority:2,
+          formulae:[`NOT(ISERROR(SEARCH("Gecikiyor",${durumL}3)))`],
+          style:{ fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFFCE8D6' } }, font:{ color:{ argb:'FF8A5209' }, bold:true } } },
+        { type:'containsText', operator:'containsText', text:'Devam ediyor', priority:3,
+          formulae:[`NOT(ISERROR(SEARCH("Devam ediyor",${durumL}3)))`],
+          style:{ fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFDDF3F3' } }, font:{ color:{ argb:'FF0B6E6E' }, bold:true } } },
+      ],
+    });
+    ws.addConditionalFormatting({
+      ref: `${progL}3:${progL}${lastRow}`,
+      rules: [ { type:'dataBar', priority:4, minLength:0, maxLength:100, gradient:true,
+        cfvo:[{type:'min'},{type:'max'}], color:{ argb:'FF2DD4C8' } } ],
+    });
+  }
 }
 
 async function exportToExcelStyled_(){
