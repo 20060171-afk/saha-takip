@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NTM Saha Takip Dashboard</title>
+<script>
+// Karanlık/Aydınlık mod tercihi — sayfa daha çizilmeden (CSS yüklenmeden
+// önce) uygulanıyor, aksi halde bir an için yanlış temayla açılıp sonra
+// doğru temaya "zıplama" olurdu (flaş etkisi).
+(function(){
+  try{
+    const saved = localStorage.getItem('saha_takip_theme');
+    if(saved === 'dark' || saved === 'light'){
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  }catch(e){}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
@@ -24,7 +37,7 @@
   --shadow-md:0 6px 20px -6px rgba(15,23,42,0.16);
 }
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     --bg:#0d1117; --card:#151b25; --border:#262e3a; --border-strong:#38424f;
     --text:#e9edf3; --text-2:#a6b0bf; --text-muted:#707a89;
     --accent:#2dd4c8; --accent-2:#14b8a6; --accent-bg:#0e2d2c; --accent-text:#5eead4;
@@ -37,6 +50,36 @@
     --shadow-md:0 10px 28px -8px rgba(0,0,0,0.5);
   }
 }
+/* Kullanıcının elle seçtiği tema (karanlık/aydınlık düğmesi) — sistem
+   ayarından bağımsız olarak zorlar. Düğmeye hiç basılmadıysa data-theme
+   hiç yazılmaz ve yukarıdaki sistem tercihi (prefers-color-scheme) geçerli
+   olmaya devam eder. */
+:root[data-theme="dark"]{
+  --bg:#0d1117; --card:#151b25; --border:#262e3a; --border-strong:#38424f;
+  --text:#e9edf3; --text-2:#a6b0bf; --text-muted:#707a89;
+  --accent:#2dd4c8; --accent-2:#14b8a6; --accent-bg:#0e2d2c; --accent-text:#5eead4;
+  --navy:#070b14; --navy-2:#0f1626;
+  --green:#3fb98d; --green-bg:#123a2c; --green-text:#6fd3ae;
+  --amber:#e0a13c; --amber-bg:#3c2c0c; --amber-text:#f0bd6a;
+  --red:#e06868; --red-bg:#3c1c1c; --red-text:#f09a9a;
+  --gray-bg:#1b2230;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md:0 10px 28px -8px rgba(0,0,0,0.5);
+}
+:root[data-theme="light"]{
+  --bg:#f4f5f7; --card:#ffffff; --border:#e5e7eb; --border-strong:#cbd2db;
+  --text:#0f172a; --text-2:#4b5768; --text-muted:#8891a0;
+  --accent:#0c8f8f; --accent-2:#0f766e; --accent-bg:#e3f5f4; --accent-text:#0b6e6e;
+  --navy:#0b1324; --navy-2:#141d33;
+  --green:#1a9670; --green-bg:#e1f5ee; --green-text:#0a6b4f;
+  --amber:#c07a14; --amber-bg:#faeeda; --amber-text:#8a5209;
+  --red:#c33f3f; --red-bg:#fcebeb; --red-text:#a12e2e;
+  --gray-bg:#eef0f3;
+  --shadow-sm:0 1px 2px rgba(15,23,42,0.06);
+  --shadow-md:0 6px 20px -6px rgba(15,23,42,0.16);
+}
+.theme-toggle-btn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1px solid var(--border-strong);background:var(--card);color:var(--text);cursor:pointer;font-size:16px;line-height:1;box-shadow:var(--shadow-sm);}
+.theme-toggle-btn:hover{border-color:var(--accent);}
 *{box-sizing:border-box;}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;}
 .top-accent{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent) 0%,#6366f1 50%,var(--accent) 100%);background-size:200% 100%;z-index:120;animation:accentflow 6s linear infinite;}
@@ -48,7 +91,7 @@ h1{font-family:var(--font-display);font-size:22px;font-weight:800;margin:0;lette
 .hero::after{content:'';position:absolute;top:-60%;right:-10%;width:340px;height:340px;background:radial-gradient(circle, rgba(45,212,200,0.16) 0%, rgba(45,212,200,0) 70%);pointer-events:none;}
 .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;position:relative;}
 .brand-row{display:flex;align-items:flex-start;gap:12px;}
-.brand-logo-wrap{flex-shrink:0;position:relative;width:62px;height:62px;border-radius:14px;background:radial-gradient(circle at 30% 20%,rgba(45,212,200,0.16),rgba(15,23,42,0.4) 70%);border:1px solid rgba(45,212,200,0.35);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 1px rgba(45,212,200,0.08),0 0 22px -2px rgba(45,212,200,0.55),inset 0 0 14px rgba(45,212,200,0.12);}.brand-logo-wrap::before{content:'';position:absolute;inset:-60%;background:conic-gradient(from 0deg,transparent 0deg,rgba(45,212,200,0.4) 60deg,transparent 120deg,transparent 240deg,rgba(99,102,241,0.32) 300deg,transparent 360deg);animation:brandSpin 5s linear infinite;opacity:0.5;}.brand-logo-wrap img{position:relative;width:84%;height:84%;object-fit:contain;filter:drop-shadow(0 0 4px rgba(45,212,200,0.75)) drop-shadow(0 0 10px rgba(99,102,241,0.5)) brightness(1.3) saturate(1.15);}@keyframes brandSpin{to{transform:rotate(360deg);}}
+.brand-logo-wrap{flex-shrink:0;position:relative;width:118px;height:46px;border-radius:12px;background:radial-gradient(circle at 30% 20%,rgba(45,212,200,0.16),rgba(15,23,42,0.4) 70%);border:1px solid rgba(45,212,200,0.35);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 1px rgba(45,212,200,0.08),0 0 22px -2px rgba(45,212,200,0.55),inset 0 0 14px rgba(45,212,200,0.12);}.brand-logo-wrap::before{content:'';position:absolute;inset:-60%;background:conic-gradient(from 0deg,transparent 0deg,rgba(45,212,200,0.4) 60deg,transparent 120deg,transparent 240deg,rgba(99,102,241,0.32) 300deg,transparent 360deg);animation:brandSpin 5s linear infinite;opacity:0.5;}.brand-logo-wrap img{position:relative;width:92%;height:92%;object-fit:contain;filter:drop-shadow(0 0 2px rgba(45,212,200,0.55)) drop-shadow(0 0 5px rgba(99,102,241,0.3)) brightness(1.08) saturate(1.05);}@keyframes brandSpin{to{transform:rotate(360deg);}}
 .live-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:#a8b3c7;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:4px 10px 4px 8px;border-radius:999px;margin-top:8px;}
 .live-dot{width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 0 rgba(52,211,153,0.6);animation:pulse-dot 2s infinite;}
 @keyframes pulse-dot{0%{box-shadow:0 0 0 0 rgba(52,211,153,0.5);}70%{box-shadow:0 0 0 6px rgba(52,211,153,0);}100%{box-shadow:0 0 0 0 rgba(52,211,153,0);}}
@@ -210,7 +253,7 @@ input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{bor
 @media (max-width:640px){
   .wrap{padding:14px 10px 40px;}
   .hero{padding:16px 15px;border-radius:13px;}
-  .brand-logo-wrap{width:48px;height:48px;border-radius:11px;}
+  .brand-logo-wrap{width:92px;height:36px;border-radius:9px;}
   h1{font-size:17px;}
   .sub{font-size:12px;}
   .topbar{gap:10px;}
@@ -248,6 +291,7 @@ input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{bor
         </div>
       </div>
       <div class="hero-right">
+        <button type="button" class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Karanlık / Aydınlık mod" aria-label="Karanlık / Aydınlık mod">🌙</button>
         <div id="authBadge"></div>
         <div class="datetime-pill">
           <div class="dt-time" id="heroClockTime">--:--:--</div>
@@ -296,6 +340,11 @@ input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{bor
 <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Renkli/detaylı Excel çıktısı için. Bu kütüphane herhangi bir sebeple
+     yüklenemezse (bağlantı sorunu vb.), exportToExcel() otomatik olarak
+     eski, sade ama HER ZAMAN çalışan yönteme geri döner — Excel'e aktarma
+     hiçbir durumda tamamen bozulmaz, veri kaybı olmaz. -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script>
 const KULE_LABELS = ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Muvafakat", "Bağlantı Görüşü", "Kolon Kabulü/Montaj Kontrol", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"];
 const BINA_LABELS = ["Evrak İsteme", "İç Tesisat/Tadil Proje", "Tesisat Kontrolü/Sayaç Bağlama", "Abone Güvence Bedeli", "Tamamlandı"];
@@ -312,6 +361,37 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const fdb = firebase.firestore();
 const fauth = firebase.auth();
+
+// ---- Karanlık / Aydınlık mod ----
+// data-theme özniteliği yoksa sistem tercihine (prefers-color-scheme) göre
+// otomatik davranır (bkz. <style>); kullanıcı düğmeye basınca localStorage'a
+// yazılıp sistem tercihinden bağımsız olarak zorlanır.
+function currentEffectiveTheme_(){
+  const forced = document.documentElement.getAttribute('data-theme');
+  if(forced === 'dark' || forced === 'light') return forced;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function updateThemeToggleIcon_(){
+  const btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  const eff = currentEffectiveTheme_();
+  // Karanlık moddaysak güneş ikonu göster (tıklayınca aydınlığa geçer), tersi de öyle.
+  btn.textContent = eff === 'dark' ? '☀️' : '🌙';
+}
+function toggleTheme(){
+  const next = currentEffectiveTheme_() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try{ localStorage.setItem('saha_takip_theme', next); }catch(e){}
+  updateThemeToggleIcon_();
+}
+updateThemeToggleIcon_();
+// Sistem teması değişirse (ör. bilgisayar akşam otomatik karanlık moda
+// geçerse) ve kullanıcı kendi elle bir seçim yapmadıysa, ikonu da güncelle.
+if(window.matchMedia){
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if(!document.documentElement.getAttribute('data-theme')) updateThemeToggleIcon_();
+  });
+}
 
 // ---- Pusula chatbot config ----
 // Apps Script'i "Web App" olarak deploy ettikten sonra buraya verdiği URL'yi yapıştırın.
@@ -843,7 +923,24 @@ function buildSheetRows(cat){
   });
 }
 
-function exportToExcel(){
+// Excel'e aktarma iki katmanlı: önce ExcelJS ile RENKLİ ve TÜM ADIMLARIN
+// DETAYINI içeren dosyayı denenir; o kütüphane herhangi bir sebeple (ağ
+// sorunu, engellenmiş CDN vb.) yüklenemediyse otomatik olarak sade ama HER
+// ZAMAN çalışan eski yönteme (exportToExcelBasic_) geri dönülür — böylece
+// "Excel'e aktar" hiçbir durumda veri kaybına ya da hataya yol açmaz.
+async function exportToExcel(){
+  if(window.ExcelJS){
+    try{
+      await exportToExcelStyled_();
+      return;
+    }catch(e){
+      console.error('Renkli Excel oluşturulamadı, sade formata geçiliyor:', e);
+    }
+  }
+  exportToExcelBasic_();
+}
+
+function exportToExcelBasic_(){
   const colWidths = [ {wch:14},{wch:10},{wch:14},{wch:26},{wch:34},{wch:24},{wch:10},{wch:14},{wch:14},{wch:16},{wch:10} ];
   const wb = XLSX.utils.book_new();
 
@@ -857,6 +954,134 @@ function exportToExcel(){
 
   const fname = `saha-takip-${todayISO()}.xlsx`;
   XLSX.writeFile(wb, fname);
+}
+
+// Durum rengini (kartlardaki rozetlerle aynı mantık) Excel dolgu rengine çeviriyor.
+function statusFillColor_(item){
+  const st = computeStatus(item);
+  if(st.statusClass === 'done') return 'FFDCFCE7';      // yeşil (açık)
+  if(st.statusClass === 'stalled') return 'FFFCE8D6';   // amber (açık)
+  return 'FFDDF3F3';                                     // teal (açık) — devam ediyor
+}
+function statusFontColor_(item){
+  const st = computeStatus(item);
+  if(st.statusClass === 'done') return 'FF0A6B4F';
+  if(st.statusClass === 'stalled') return 'FF8A5209';
+  return 'FF0B6E6E';
+}
+
+// Bir kategori (kule/bina) için, TÜM adımların not/kişi/gün/tarih bilgisini
+// içeren, renklendirilmiş, başlıkları donmuş (freeze pane) bir sayfa
+// oluşturur. Hiçbir veri özetlenip atılmıyor — her adımın kendi sütunu var.
+function addStyledSheet_(wb, cat, sheetName){
+  const labels = labelsFor(cat);
+  const items = (STATE.data[cat] || []).slice().sort((a,b) => (a.sahaAdi||'').localeCompare(b.sahaAdi||'', 'tr'));
+  const ws = wb.addWorksheet(sheetName, { views:[{ state:'frozen', xSplit:0, ySplit:2 }] });
+
+  const fixedCols = [
+    { header:'Saha Kodu', width:14 }, { header:'Saha No', width:12 }, { header:'Enerji', width:16 },
+    { header:'Saha Adı', width:26 }, { header:'Açıklama', width:32 }, { header:'Bulunduğu Adım', width:24 },
+    { header:'İlerleme (%)', width:12 }, { header:'Durum', width:14 },
+    { header:'Başlangıç Tarihi', width:14 }, { header:'Tamamlanma Tarihi', width:16 }, { header:'Gün Sayısı', width:11 },
+    { header:'Son Düzenleyen', width:16 },
+  ];
+  const perStepHeaders = ['Not', 'Kişi (mail)', 'Kaç gün sonra', 'Tarih'];
+
+  // 1. satır: sabit sütunlar için tek büyük birleşik başlık hücresi, her
+  // adım için de "N. Adım adı" yazan 4 sütunu kapsayan birleşik hücre.
+  const totalFixed = fixedCols.length;
+  ws.mergeCells(1, 1, 1, totalFixed);
+  const genelCell = ws.getCell(1, 1);
+  genelCell.value = 'Genel bilgiler';
+  labels.forEach((lbl, i) => {
+    const startCol = totalFixed + 1 + i*perStepHeaders.length;
+    const endCol = startCol + perStepHeaders.length - 1;
+    ws.mergeCells(1, startCol, 1, endCol);
+    const cell = ws.getCell(1, startCol);
+    cell.value = `${i+1}. ${lbl}`;
+  });
+
+  // 2. satır: gerçek sütun başlıkları.
+  const headerRowValues = fixedCols.map(c => c.header);
+  labels.forEach(() => { headerRowValues.push(...perStepHeaders); });
+  const headerRow = ws.getRow(2);
+  headerRow.values = headerRowValues;
+
+  [1,2].forEach(r => {
+    ws.getRow(r).eachCell({ includeEmpty:true }, cell => {
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF0F766E' } };
+      cell.font = { bold:true, color:{ argb:'FFFFFFFF' }, size: r===1?12:11 };
+      cell.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+      cell.border = { top:{style:'thin',color:{argb:'FF0B5A57'}}, bottom:{style:'thin',color:{argb:'FF0B5A57'}}, left:{style:'thin',color:{argb:'FF0B5A57'}}, right:{style:'thin',color:{argb:'FF0B5A57'}} };
+    });
+  });
+  ws.getRow(1).height = 20;
+  ws.getRow(2).height = 30;
+
+  // Sütun genişlikleri.
+  fixedCols.forEach((c, i) => { ws.getColumn(i+1).width = c.width; });
+  labels.forEach((_, i) => {
+    const base = totalFixed + i*perStepHeaders.length;
+    ws.getColumn(base+1).width = 30; // Not
+    ws.getColumn(base+2).width = 26; // Kişi
+    ws.getColumn(base+3).width = 13; // Kaç gün sonra
+    ws.getColumn(base+4).width = 12; // Tarih
+  });
+
+  // Veri satırları — HİÇBİR alan atlanmıyor, her adımın notu/kişisi/günü/
+  // tarihi ayrı bir sütunda tek tek yer alıyor.
+  items.forEach((item, idx) => {
+    const st = computeStatus(item);
+    const stepLabel = item.currentStep>0 && item.currentStep<=labels.length ? labels[item.currentStep-1] : 'Başlamadı';
+    const rowValues = [
+      item.sahaKodu||'', item.sahaNo||'', item.enerji||'', item.sahaAdi||'', item.aciklama||'',
+      `${item.currentStep||0}/${item.totalSteps||labels.length} · ${stepLabel}`,
+      st.pct, st.statusText,
+      item.startDate ? fmtDate(item.startDate) : '', item.completionDate ? fmtDate(item.completionDate) : '',
+      st.days !== null ? st.days : '', item.updatedBy || '',
+    ];
+    labels.forEach((_, i) => {
+      rowValues.push(
+        (item.stepNotes && item.stepNotes[i]) || '',
+        (item.stepContacts && item.stepContacts[i]) || '',
+        (item.stepMailDays && item.stepMailDays[i]!=null && item.stepMailDays[i]!=='') ? item.stepMailDays[i] : '',
+        (item.stepDates && item.stepDates[i]) ? fmtDate(item.stepDates[i]) : '',
+      );
+    });
+    const row = ws.addRow(rowValues);
+    const zebra = idx % 2 === 1;
+    row.eachCell({ includeEmpty:true }, (cell, colNumber) => {
+      cell.alignment = { vertical:'middle', wrapText: colNumber===5 };
+      cell.border = { top:{style:'hair',color:{argb:'FFDDE2E8'}}, bottom:{style:'hair',color:{argb:'FFDDE2E8'}}, left:{style:'hair',color:{argb:'FFDDE2E8'}}, right:{style:'hair',color:{argb:'FFDDE2E8'}} };
+      if(zebra && colNumber !== 8){ cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF7F9FA' } }; }
+    });
+    // "Durum" sütunu (8.), kartlardaki rozetlerle aynı renkte.
+    const durumCell = row.getCell(8);
+    durumCell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: statusFillColor_(item) } };
+    durumCell.font = { bold:true, color:{ argb: statusFontColor_(item) } };
+    durumCell.alignment = { vertical:'middle', horizontal:'center' };
+  });
+
+  ws.autoFilter = { from:{ row:2, column:1 }, to:{ row:2, column: headerRowValues.length } };
+  ws.views = [{ state:'frozen', xSplit:0, ySplit:2 }];
+}
+
+async function exportToExcelStyled_(){
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Saha Takip Dashboard';
+  wb.created = new Date();
+  addStyledSheet_(wb, 'kule', 'Kule Üzeri');
+  addStyledSheet_(wb, 'bina', 'Bina Üzeri');
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `saha-takip-${todayISO()}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 function onFilter(v){ STATE.filter=v; render(); }
 
