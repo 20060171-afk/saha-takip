@@ -789,6 +789,7 @@ function render(){
     const editLabels = labelsFor(STATE.editing.cat);
     bindStepSelectListener_(editLabels, STATE.editing.item);
     bindQuickAssignSync_(STATE.editing.item, editLabels);
+    bindAccordionDetails_();
   }
 
   if(restoreFocusId){
@@ -947,6 +948,38 @@ function bindStepSelectListener_(labels, item){
 // hangisinden değiştirilirse değiştirilsin ikisi de hep aynı (güncel) değeri
 // gösteriyor ve kaydederken tek, tutarlı bir kaynaktan (per-adım kutusu)
 // okunuyor.
+// Düzenleme formundaki "Saha hikayesi", "Tüm adımların notları" ve "Sürüm
+// geçmişi" bölümleri ayrı ayrı açılıp kapanabiliyordu; hepsi aynı anda açık
+// kalınca form uzayıp karışıyordu. Bunları bir "akordeon" gibi davranacak
+// şekilde bağlıyoruz: biri açılınca, aynı formdaki diğer açık olanlar otomatik
+// kapanıyor — aynı anda sadece bir bölüm açık kalıyor.
+function bindAccordionDetails_(){
+  const detailsEls = Array.from(document.querySelectorAll('details.acc-detail'));
+  detailsEls.forEach(d => {
+    d.addEventListener('toggle', () => {
+      if(d.open){
+        detailsEls.forEach(other => { if(other!==d && other.open) other.open = false; });
+      }
+    });
+  });
+}
+
+// Sürüm geçmişini toplu olarak temizler ("Tüm geçmişi temizle" düğmesi).
+async function clearAllHistory(cat, id){
+  if(!STATE.isAdmin) return;
+  if(!confirm('Bu sahanın tüm sürüm geçmişi kalıcı olarak silinsin mi? Bu işlem geri alınamaz.')) return;
+  try{
+    await fdb.collection(collFor(cat)).doc(id).update({ history: [] });
+    if(STATE.editing && STATE.editing.id===id){
+      STATE.editing.item.history = [];
+      if(STATE.editing.original) STATE.editing.original.history = [];
+    }
+  }catch(e){
+    console.error(e);
+    alert('Sürüm geçmişi silinemedi: bağlantı sorunu olabilir.');
+  }
+}
+
 function bindQuickAssignSync_(item, labels){
   const quickSel = document.getElementById('f_quickContact');
   const quickDays = document.getElementById('f_quickMailDays');
@@ -1085,14 +1118,17 @@ function buildEditFieldsHtml_(cat, id, item, labels){
         <label>Tamamlanma tarihi</label><input type="date" id="f_completionDate" value="${item.completionDate||''}">
       </div>
       ${(id && item.updatedBy) ? `<div class="story-hint" style="margin:-4px 0 4px;">Son düzenleyen: <b>${escapeHtml(item.updatedBy)}</b>${item.updatedAt?(' · '+fmtDateTime(item.updatedAt)):''}</div>` : ''}
-      <details class="story-detail">
+      <details class="story-detail acc-detail">
         <summary><svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="11" width="14" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V7A4 4 0 0116 7V11" stroke="currentColor" stroke-width="1.8"/></svg> Saha hikayesi <span class="story-hint">(gizli not — sadece yöneticiler görür)</span></summary>
         <textarea id="f_hikaye" placeholder="Bu sahayla ilgili arka plan, yaşanan olaylar, önemli detaylar...">${escapeHtml(item.hikaye||'')}</textarea>
       </details>
-      <details class="steps-detail"><summary>Tüm adımların notlarını / maillerini göster</summary>${stepsHtml}</details>
-      ${(id && item.history && item.history.length) ? `<details class="story-detail">
+      <details class="steps-detail acc-detail"><summary>Tüm adımların notlarını / maillerini göster</summary>${stepsHtml}</details>
+      ${(id && item.history && item.history.length) ? `<details class="story-detail acc-detail">
         <summary><svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 12a9 9 0 109-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 4v5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Sürüm geçmişi (${item.history.length}) <span class="story-hint">— yanlış bir değişiklik olduysa buradan geri dönebilirsiniz</span></summary>
-        <div class="history-scroll" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="margin:8px 0 6px;display:flex;justify-content:flex-end;">
+          <button type="button" class="btn small danger" onclick="clearAllHistory('${cat}','${id}')">Tüm geçmişi temizle</button>
+        </div>
+        <div class="history-scroll" style="display:flex;flex-direction:column;gap:6px;">
           ${item.history.map((h,i) => `<div class="contact-row">
             <div class="contact-row-info">
               <div class="contact-row-label">${fmtDateTime(h.savedAt)}${h.snapshot.updatedBy?(' · Kaydeden: '+escapeHtml(h.snapshot.updatedBy)):''}</div>
@@ -1134,6 +1170,7 @@ function renderModal(){
   renderEmailDatalist();
   bindStepSelectListener_(labels, item);
   bindQuickAssignSync_(item, labels);
+  bindAccordionDetails_();
 }
 
 async function saveItem(){
