@@ -406,6 +406,14 @@ if(window.matchMedia){
 // Apps Script'i "Web App" olarak deploy ettikten sonra buraya verdiği URL'yi yapıştırın.
 // Pusula, arka planda bir sunucu köprüsü üzerinden çalışır; anahtarlar tarayıcıda hiç görünmez.
 const CHAT_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbxN3J04ep3CsYaF5Cz9EZcGeMx4NUcbSNhUyVUXUxL7jm8d1idNXaXETi1KFuxUCMM/exec";
+// "Test maili gönder" butonu bu adrese POST atıyor; adres sayfa kaynağında
+// herkese görünür olduğu için, giriş yapmadan sadece bu adresi bulan biri
+// e-posta göndermeyi TETİKLEYEMESİN diye istekle birlikte bu paylaşılan
+// anahtarı da gönderiyoruz — Apps Script tarafı (GROQ_MODEL.gs / doPost)
+// bunu Script Properties > APP_SHARED_SECRET ile karşılaştırıp eşleşmezse
+// isteği reddediyor. Bu anahtarı değiştirirsen Apps Script tarafındaki
+// Script Property'yi de AYNI değerle güncellemen gerekir.
+const APP_SHARED_SECRET = "5b5c06e50ba127bc93301fe0d26cc5df05f981a0df56825d";
 
 const STATE = {
   tab: 'kule',
@@ -2151,7 +2159,7 @@ async function sendTestMail(cat, id){
     const resp = await fetch(CHAT_ENDPOINT_URL, {
       method:'POST',
       headers:{ 'Content-Type':'text/plain' },
-      body: JSON.stringify({ action:'sendTestMail', cat, docId:id }),
+      body: JSON.stringify({ action:'sendTestMail', cat, docId:id, token: APP_SHARED_SECRET }),
     });
     const data = await resp.json();
     if(data && data.ok){
