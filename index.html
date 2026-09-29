@@ -2284,7 +2284,7 @@ async function sendChat(){
     const resp = await fetch(CHAT_ENDPOINT_URL, {
       method:'POST',
       headers:{ 'Content-Type':'text/plain' }, // Apps Script CORS preflight'tan kaçınmak için text/plain
-      body: JSON.stringify({ question:q, context: buildSiteContext(), history }),
+      body: JSON.stringify({ question:q, context: buildSiteContext(), history, token: APP_SHARED_SECRET }),
     });
     const data = await resp.json();
     CHAT_STATE.messages.pop(); // "yazıyor…" mesajını kaldır
