@@ -227,6 +227,9 @@ input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{bor
 .step-contact-row{display:flex;gap:8px;margin-top:6px;}
 .step-contact-row select{flex:2;min-width:0;font-size:13px;}
 .step-contact-row input{flex:1;min-width:0;font-size:13px;}
+.step-note-tools{display:flex;gap:8px;margin-top:6px;}
+.step-note-tools select{flex:1;min-width:0;font-size:12.5px;}
+.step-note-tools input[type="date"]{flex:1;min-width:0;font-size:12.5px;}
 .contact-list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
 .contact-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;}
 .contact-row-label{font-size:13px;font-weight:600;color:var(--text);}
@@ -1421,6 +1424,7 @@ function syncEditingFormToState_(){
   if(!item.stepNotes || item.stepNotes.length!==labels.length) item.stepNotes = new Array(labels.length).fill('');
   if(!item.stepContacts || item.stepContacts.length!==labels.length) item.stepContacts = new Array(labels.length).fill('');
   if(!item.stepMailDays || item.stepMailDays.length!==labels.length) item.stepMailDays = new Array(labels.length).fill('');
+  if(!item.stepDates || item.stepDates.length!==labels.length) item.stepDates = new Array(labels.length).fill(null);
 
   labels.forEach((_,i) => {
     const noteEl = g('stepNote_'+i);
@@ -1429,6 +1433,8 @@ function syncEditingFormToState_(){
     if(contactEl) item.stepContacts[i] = contactEl.value.trim();
     const daysEl = g('stepMailDays_'+i);
     if(daysEl) item.stepMailDays[i] = daysEl.value!=='' ? parseInt(daysEl.value,10) : '';
+    const dateEl = g('stepDate_'+i);
+    if(dateEl) item.stepDates[i] = dateEl.value || null;
   });
 
   // NOT: hızlı atama kutuları ("Şu anki adımın taşeron maili") artık
@@ -1438,12 +1444,34 @@ function syncEditingFormToState_(){
   // diğerinin yaptığı değişikliği sessizce silebiliyordu.
 }
 
+const STEP_PRESET_NOTES = ['İstendi','Teslim edildi','Onaylandı','Beklemede','Taşerona iletildi','Takip edilecek','Gerekmemektedir','Tamamlandı','Reddedildi - tekrar gönderilecek'];
+
+function stepPresetOptionsHtml_(){
+  return STEP_PRESET_NOTES.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+}
+
+function applyPresetNote_(i, value){
+  if(!value) return;
+  const el = document.getElementById('stepNote_'+i);
+  if(!el) return;
+  el.value = el.value && el.value.trim() ? (el.value.replace(/\s+$/,'') + ' | ' + value) : value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 function buildEditFieldsHtml_(cat, id, item, labels){
   let stepsHtml='';
   labels.forEach((lbl,i) => {
     const dayVal = (item.stepMailDays && item.stepMailDays[i]!=null) ? item.stepMailDays[i] : '';
+    const dateVal = (item.stepDates && item.stepDates[i]) ? String(item.stepDates[i]).slice(0,10) : '';
     stepsHtml += `<div class="step-item"><label>${i+1}. ${escapeHtml(lbl)}</label>
-      <textarea id="stepNote_${i}" placeholder="Not / tarih (opsiyonel)">${escapeHtml(item.stepNotes[i]||'')}</textarea>
+      <textarea id="stepNote_${i}" placeholder="Buraya kendi notunuzu serbestçe yazabilirsiniz...">${escapeHtml(item.stepNotes[i]||'')}</textarea>
+      <div class="step-note-tools">
+        <select id="stepPreset_${i}" onchange="applyPresetNote_(${i}, this.value); this.value='';">
+          <option value="">+ Hazır not ekle (istersen)...</option>
+          ${stepPresetOptionsHtml_()}
+        </select>
+        <input type="date" id="stepDate_${i}" value="${escapeHtml(dateVal)}" title="Bu adıma giriş tarihi">
+      </div>
       <div class="step-contact-row">
         <select id="stepContact_${i}">${contactSelectOptions_(item.stepContacts?item.stepContacts[i]||'':'')}</select>
         <input type="number" min="0" id="stepMailDays_${i}" value="${escapeHtml(dayVal)}" placeholder="Kaç gün sonra">
@@ -1572,6 +1600,13 @@ async function saveItem(){
   // Adım değiştiyse, yeni adıma bugün girildiğini kaydediyoruz (var olan tarihleri koruyarak).
   const stepDates = (original.stepDates && original.stepDates.length===labels.length) ? original.stepDates.slice() : new Array(labels.length).fill(null);
   if(currentStep>=1 && currentStep!==original.currentStep){ stepDates[currentStep-1] = todayISO(); }
+  // Kullanıcı "Tüm adımların notlarını göster" bölümündeki takvimden elle bir
+  // tarih seçtiyse, o seçim otomatik atanan tarihin önüne geçer (adım aynı
+  // kalsa bile elle düzeltme yapılabilsin diye).
+  labels.forEach((_,i) => {
+    const dateEl = document.getElementById('stepDate_'+i);
+    if(dateEl && dateEl.value){ stepDates[i] = dateEl.value; }
+  });
   const doc = {
     sahaKodu: document.getElementById('f_sahaKodu').value.trim(),
     sahaNo: document.getElementById('f_sahaNo').value.trim(),
