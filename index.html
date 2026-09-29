@@ -183,6 +183,16 @@ input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{bor
 .story-hint{font-style:italic;color:var(--text-muted);font-weight:400;}
 .story-detail textarea{width:100%;margin-top:8px;min-height:70px;font-size:13px;background:var(--gray-bg);}
 .story-detail[open] summary{color:var(--text-2);}
+@keyframes panelIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+.detail-panel{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);animation:panelIn .2s ease;}
+.detail-step-row{display:flex;gap:10px;padding:6px 0;font-size:12.5px;align-items:flex-start;}
+.detail-step-row .dsr-dot{width:9px;height:9px;border-radius:50%;background:var(--gray-bg);border:2px solid var(--border-strong);margin-top:3px;flex-shrink:0;}
+.detail-step-row.reached .dsr-dot{background:var(--accent);border-color:var(--accent);}
+.detail-step-row.current .dsr-dot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg);}
+.dsr-body{flex:1;min-width:0;}
+.dsr-title{font-weight:600;color:var(--text);}
+.detail-step-row:not(.reached) .dsr-title{color:var(--text-muted);font-weight:500;}
+.dsr-note{color:var(--text-2);font-style:italic;margin-top:2px;}
 .step-item{margin-top:8px;}
 .step-item label{font-size:12px;color:var(--text-muted);}
 .err{color:var(--red-text);font-size:12.5px;margin-top:4px;}
@@ -429,6 +439,7 @@ const STATE = {
   ccContacts: [],
   trashItems: { kule: [], bina: [] },
   users: [],
+  expandedNotes: {},
 };
 
 function labelsFor(cat){ return cat === 'kule' ? KULE_LABELS : BINA_LABELS; }
@@ -875,6 +886,10 @@ function render(){
             <button class="btn small danger" onclick="deleteItem('${cat}','${item.id}')">Sil</button>
           </div>
         </div>
+        <div style="margin-top:10px;">
+          <button class="btn small" onclick="toggleStepNotesView('${cat}','${item.id}')">${STATE.expandedNotes[cat+':'+item.id] ? 'Adım açıklamalarını gizle ▴' : 'Tüm adımların açıklamalarını göster ▾'}</button>
+        </div>
+        ${STATE.expandedNotes[cat+':'+item.id] ? renderStepNotesPanel(item, labels) : ''}
       </div>
       ${(STATE.editing && STATE.editing.cat===cat && STATE.editing.id===item.id) ? renderInlineEditForm(cat, item.id, STATE.editing.item, labels) : ''}`;
     });
@@ -1167,6 +1182,31 @@ function emptyItem(cat){
     currentStep:0, totalSteps:total,
     completed:false, startDate:todayISO(), completionDate:null };
 }
+function toggleStepNotesView(cat, id){
+  const key = cat+':'+id;
+  STATE.expandedNotes[key] = !STATE.expandedNotes[key];
+  render();
+}
+
+function renderStepNotesPanel(item, labels){
+  const notes = item.stepNotes || [];
+  let rows = '';
+  labels.forEach((lbl,i) => {
+    const stepNum = i+1;
+    const isCurrent = stepNum === (item.currentStep||0) && !item.completed;
+    const isDone = stepNum <= (item.currentStep||0);
+    const note = notes[i] || '';
+    rows += `<div class="detail-step-row${isCurrent?' current':''}${isDone?' reached':''}">
+      <div class="dsr-dot"></div>
+      <div class="dsr-body">
+        <div class="dsr-title">${stepNum}. ${escapeHtml(lbl)}</div>
+        ${note ? `<div class="dsr-note">${escapeHtml(note)}</div>` : `<div class="dsr-note" style="opacity:0.5;">Açıklama girilmemiş</div>`}
+      </div>
+    </div>`;
+  });
+  return `<div class="detail-panel">${rows}</div>`;
+}
+
 function openAddModal(){
   if(!STATE.isAdmin){ openLoginModal(); return; }
   const fresh = emptyItem(STATE.tab);
@@ -1232,6 +1272,17 @@ function bindStepSelectListener_(labels, item){
     const qDays = document.getElementById('f_quickMailDays');
     if(qDays){
       qDays.value = (v>=1 && item.stepMailDays && item.stepMailDays[v-1]!=null) ? item.stepMailDays[v-1] : '';
+    }
+    const aLbl = document.getElementById('aciklamaStepLabel');
+    if(aLbl) aLbl.textContent = v>=1 ? (v+'. '+labels[v-1]) : '—';
+    const aBox = document.getElementById('f_aciklama');
+    if(aBox){
+      if(v>=1){
+        const stepNoteEl = document.getElementById('stepNote_'+(v-1));
+        aBox.value = stepNoteEl ? stepNoteEl.value : ((item.stepNotes && item.stepNotes[v-1]) || '');
+      } else {
+        aBox.value = item.aciklama || '';
+      }
     }
   });
 }
@@ -1304,6 +1355,15 @@ function bindQuickAssignSync_(item, labels){
       if(target) target.value = quickDays.value;
     });
   }
+  const aciklamaBox = document.getElementById('f_aciklama');
+  if(aciklamaBox){
+    aciklamaBox.addEventListener('input', () => {
+      const idx = curIdx();
+      if(idx<0) return; // "Başlamadı" durumunda kutu doğrudan item.aciklama'ya yazılır (saveItem içinde okunur)
+      const target = document.getElementById('stepNote_'+idx);
+      if(target) target.value = aciklamaBox.value;
+    });
+  }
   labels.forEach((_,i) => {
     const contactEl = document.getElementById('stepContact_'+i);
     if(contactEl){
@@ -1315,6 +1375,12 @@ function bindQuickAssignSync_(item, labels){
     if(daysEl){
       daysEl.addEventListener('input', () => {
         if(curIdx() === i && quickDays) quickDays.value = daysEl.value;
+      });
+    }
+    const noteEl = document.getElementById('stepNote_'+i);
+    if(noteEl){
+      noteEl.addEventListener('input', () => {
+        if(curIdx() === i && aciklamaBox) aciklamaBox.value = noteEl.value;
       });
     }
   });
@@ -1411,7 +1477,11 @@ function buildEditFieldsHtml_(cat, id, item, labels){
         <div class="field"><label>Enerji</label><input type="text" id="f_enerji" value="${escapeHtml(item.enerji)}" placeholder="Geçici Süzme, Abone..."></div>
         <div class="field"><label>Başlangıç tarihi</label><input type="date" id="f_startDate" value="${item.startDate||''}"></div>
       </div>
-      <div class="field"><label>Açıklama</label><textarea id="f_aciklama">${escapeHtml(item.aciklama)}</textarea></div>
+      <div class="field">
+        <label>Açıklama (<span id="aciklamaStepLabel">${escapeHtml(curStepLabel)}</span> adımı için)</label>
+        <textarea id="f_aciklama" placeholder="Bu adımla ilgili açıklama...">${escapeHtml((item.currentStep>=1 && item.stepNotes && item.stepNotes[item.currentStep-1]) ? item.stepNotes[item.currentStep-1] : (item.aciklama||''))}</textarea>
+        <div class="quick-assign-hint">Bu kutu, bulunduğu adımın açıklamasıdır. Adım değiştikçe kutunun içeriği o adıma göre değişir; önceki adımların açıklamaları kaybolmaz, "Tüm adımların notlarını göster" bölümünden görülebilir.</div>
+      </div>
       <div class="field"><label>Varsayılan iletişim maili</label><input type="text" id="f_contactEmail" value="${escapeHtml(item.contactEmail||'')}" placeholder="Adım bazında taşeron maili belirtilmezse buraya gider"></div>
       <div class="field"><label>Bulunduğu adım</label><select id="f_currentStep">${stepOptions}</select></div>
       <div class="field" id="f_compDateWrap" style="${item.currentStep>=labels.length?'':'display:none'}">
@@ -1456,7 +1526,7 @@ function renderModal(){
   const { cat, id, item } = STATE.editing;
   const labels = labelsFor(cat);
   const catName = cat==='kule' ? 'Kule üzeri' : 'Bina üzeri';
-  const html = `<div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+  const html = `<div class="modal-overlay">
     <div class="modal">
       <h3>${id?'Sahayı düzenle':'Yeni saha ekle'} · ${catName}</h3>
       ${buildEditFieldsHtml_(cat, id, item, labels)}
@@ -1558,12 +1628,31 @@ async function saveItem(){
       const newId = 'saha_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
       await coll.doc(newId).set(doc);
     }
+    warnIfMailMissing_(currentStep, stepContacts, stepMailDays, doc.contactEmail);
     closeModal();
   }catch(e){
     console.error(e);
     errEl.textContent = 'Kaydedilemedi: bağlantı sorunu olabilir.';
     errEl.style.display = 'block';
   }
+}
+
+// Kaydetme başarılı olduktan hemen sonra çağrılır. Otomatik gecikme maili
+// göndermek için mailscript.gs'in ihtiyaç duyduğu iki şey — bu adıma özel
+// (veya varsayılan) bir taşeron maili, VE bu adım için "kaç gün sonra" gün
+// sayısı — eksikse admini hemen uyarır. Bu uyarı olmadan, eksiklik ancak
+// haftalar sonra "neden mail gitmedi" diye script loglarına bakılınca fark
+// ediliyordu.
+function warnIfMailMissing_(currentStep, stepContacts, stepMailDays, defaultContactEmail){
+  if(!currentStep || currentStep<1) return; // "Başlamadı" durumunda mail zaten beklenmiyor
+  const idx = currentStep-1;
+  const hasContact = (stepContacts[idx] && stepContacts[idx].trim()) || (defaultContactEmail && defaultContactEmail.trim());
+  const hasDays = stepMailDays[idx]!=null && stepMailDays[idx]!=='' && !isNaN(stepMailDays[idx]);
+  if(hasContact && hasDays) return;
+  const missing = [];
+  if(!hasContact) missing.push('taşeron maili (veya varsayılan iletişim maili)');
+  if(!hasDays) missing.push('"kaç gün sonra" gün sayısı');
+  alert('Uyarı: bu sahanın şu anki adımı için ' + missing.join(' ve ') + ' girilmemiş.\n\nBu eksiklik giderilmeden bu adım için otomatik gecikme maili GÖNDERİLMEYECEK. "Şu anki adımın taşeron maili" kutusundan tamamlayabilirsiniz.');
 }
 
 // Düzenleme panelindeki "Sürüm geçmişi" listesinden bir kayda dönmek için.
